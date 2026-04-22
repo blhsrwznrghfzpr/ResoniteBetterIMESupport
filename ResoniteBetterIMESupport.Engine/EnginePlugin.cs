@@ -19,7 +19,10 @@ public sealed class EnginePlugin : BasePlugin
     {
         Log = base.Log;
         EngineIMEPatch.Start();
+        AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
         new Harmony(PluginGuid).PatchAll(Assembly.GetExecutingAssembly());
         Log.LogInfo("ResoniteBetterIMESupport.Engine loaded.");
     }
+
+    static void OnProcessExit(object? sender, EventArgs e) => EngineIMEPatch.Stop();
 }

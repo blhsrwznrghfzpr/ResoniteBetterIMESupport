@@ -26,7 +26,14 @@ static class EngineIMEPatch
 
     public static void Start()
     {
+        Stop();
         _server = new ImePipeServer(OnMessage);
+    }
+
+    public static void Stop()
+    {
+        _server?.Dispose();
+        _server = null;
     }
 
     public static void SetEditingText(IText text)
@@ -87,12 +94,12 @@ static class EngineIMEPatch
         if (message.Composition == _composition && message.CommittedText.Length == 0 && message.CaretOffset == _compositionCaretOffset)
             return;
 
-        text.RunSynchronously(() => ApplyMessage(message), true);
+        text.RunSynchronously(() => ApplyMessage(text, message), true);
     }
 
-    static void ApplyMessage(ImePipeMessage message)
+    static void ApplyMessage(IText targetText, ImePipeMessage message)
     {
-        if (_editingText == null)
+        if (!ReferenceEquals(_editingText, targetText))
             return;
 
         RestoreCompositionRangeIfTextEditorDeletedIt();

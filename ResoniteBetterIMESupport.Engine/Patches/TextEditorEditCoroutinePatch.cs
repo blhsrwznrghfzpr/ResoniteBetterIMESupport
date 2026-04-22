@@ -1,6 +1,7 @@
 using FrooxEngine;
 using HarmonyLib;
 using Renderite.Shared;
+using ResoniteBetterIMESupport.Shared;
 using System.Reflection;
 using System.Reflection.Emit;
 
@@ -25,17 +26,7 @@ static class TextEditorEditCoroutinePatch
     {
         var codes = instructions.ToList();
         var getKeyRepeatMethod = AccessTools.Method(typeof(InputInterface), nameof(InputInterface.GetKeyRepeat));
-        var suppressedEditingKeys = new HashSet<int>
-        {
-            (int)Key.UpArrow,
-            (int)Key.DownArrow,
-            (int)Key.RightArrow,
-            (int)Key.LeftArrow,
-            (int)Key.Backspace,
-            (int)Key.Delete,
-            (int)Key.Home,
-            (int)Key.End
-        };
+        var suppressedEditingKeys = new HashSet<int>(ImeKeys.EditingKeys.Select(key => (int)key));
         for (var i = 0; i < codes.Count; i++)
         {
             if (codes[i].opcode != OpCodes.Ldloc_3 || i + 1 >= codes.Count || codes[i + 1].opcode != OpCodes.Brfalse_S)

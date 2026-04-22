@@ -20,28 +20,6 @@ static class KeyboardDriverIMEPatch
     static readonly HashSet<object> ActiveDrivers = new();
     static readonly ImePipeClient PipeClient = new();
 
-    static readonly RenderiteKey[] IMEEditingKeys =
-    {
-        RenderiteKey.LeftArrow,
-        RenderiteKey.RightArrow,
-        RenderiteKey.UpArrow,
-        RenderiteKey.DownArrow,
-        RenderiteKey.Backspace,
-        RenderiteKey.Delete,
-        RenderiteKey.Home,
-        RenderiteKey.End,
-        RenderiteKey.PageUp,
-        RenderiteKey.PageDown
-    };
-
-    static readonly RenderiteKey[] IMECaretKeys =
-    {
-        RenderiteKey.LeftArrow,
-        RenderiteKey.RightArrow,
-        RenderiteKey.Home,
-        RenderiteKey.End
-    };
-
     static FieldInfo? _typeDeltaField;
     static bool _inputUpdateHooked;
 
@@ -282,7 +260,7 @@ static class KeyboardDriverIMEPatch
         if (state.heldKeys == null)
             return;
 
-        foreach (var key in IMEEditingKeys)
+        foreach (var key in ImeKeys.EditingKeys)
             state.heldKeys.Remove(key);
     }
 
@@ -296,7 +274,7 @@ static class KeyboardDriverIMEPatch
             return;
         }
 
-        foreach (var key in IMECaretKeys)
+        foreach (var key in ImeKeys.CaretKeys)
         {
             var isPressed = IsIMECaretKeyPressed(key, keyboard);
             var wasPressedThisFrame = IsIMECaretKeyPressedThisFrame(key, keyboard);

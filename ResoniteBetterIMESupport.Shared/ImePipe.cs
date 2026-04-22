@@ -8,7 +8,10 @@ namespace ResoniteBetterIMESupport.Shared;
 
 internal static class ImePipe
 {
-    public const string PipeName = "ResoniteBetterIMESupport.IME.v1";
+    const string BasePipeName = "ResoniteBetterIMESupport.IME.v1";
+    static readonly Lazy<string> PipeNameValue = new(BuildPipeName);
+
+    public static string PipeName => PipeNameValue.Value;
 
     public static string Encode(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
 
@@ -24,6 +27,65 @@ internal static class ImePipe
             parts.Length > 0 ? Decode(parts[0]) : string.Empty,
             parts.Length > 1 ? Decode(parts[1]) : string.Empty,
             parts.Length > 2 && int.TryParse(parts[2], out var caretOffset) ? caretOffset : -1);
+    }
+
+    public static bool TryDecodeMessage(string line, out ImePipeMessage message)
+    {
+        try
+        {
+            message = DecodeMessage(line);
+            return true;
+        }
+        catch
+        {
+            message = default;
+            return false;
+        }
+    }
+
+    static string BuildPipeName()
+    {
+        var sessionId = GetResoniteSessionId();
+
+        if (string.IsNullOrWhiteSpace(sessionId))
+            return BasePipeName;
+
+        return $"{BasePipeName}.{SanitizePipeNamePart(sessionId)}";
+    }
+
+    static string GetResoniteSessionId()
+    {
+        var args = Environment.GetCommandLineArgs();
+
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i].Equals("-shmprefix", StringComparison.OrdinalIgnoreCase))
+                return args[i + 1];
+
+            if (!args[i].Equals("-QueueName", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var queueName = args[i + 1];
+            var separatorIndex = queueName.IndexOf('_');
+            return separatorIndex <= 0 ? queueName : queueName.Substring(0, separatorIndex);
+        }
+
+        return string.Empty;
+    }
+
+    static string SanitizePipeNamePart(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+
+        foreach (var character in value)
+        {
+            if (char.IsLetterOrDigit(character) || character == '.' || character == '-' || character == '_')
+                builder.Append(character);
+            else
+                builder.Append('_');
+        }
+
+        return builder.ToString();
     }
 }
 
@@ -128,7 +190,9 @@ internal sealed class ImePipeClient : IDisposable
 internal sealed class ImePipeServer : IDisposable
 {
     readonly Action<ImePipeMessage> _onMessage;
+    readonly object _lock = new();
     readonly Thread _thread;
+    NamedPipeServerStream? _stream;
     volatile bool _disposed;
 
     public ImePipeServer(Action<ImePipeMessage> onMessage)
@@ -149,6 +213,9 @@ internal sealed class ImePipeServer : IDisposable
             try
             {
                 using var stream = new NamedPipeServerStream(ImePipe.PipeName, PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.None);
+                lock (_lock)
+                    _stream = stream;
+
                 stream.WaitForConnection();
                 using var reader = new StreamReader(stream, Encoding.UTF8);
 
@@ -159,7 +226,8 @@ internal sealed class ImePipeServer : IDisposable
                     if (line == null)
                         break;
 
-                    _onMessage(ImePipe.DecodeMessage(line));
+                    if (ImePipe.TryDecodeMessage(line, out var message))
+                        _onMessage(message);
                 }
             }
             catch
@@ -167,11 +235,19 @@ internal sealed class ImePipeServer : IDisposable
                 if (!_disposed)
                     Thread.Sleep(500);
             }
+            finally
+            {
+                lock (_lock)
+                    _stream = null;
+            }
         }
     }
 
     public void Dispose()
     {
         _disposed = true;
+
+        lock (_lock)
+            _stream?.Dispose();
     }
 }
