@@ -1,6 +1,7 @@
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
+using ResoniteBetterIMESupport.Shared;
 using System.Reflection;
 
 namespace ResoniteBetterIMESupport.Renderer;
@@ -20,6 +21,7 @@ public sealed class RendererPlugin : BaseUnityPlugin
 
         LegacyPluginWarning.WarnIfLoaded(Logger);
         new Harmony(PluginGuid).PatchAll(Assembly.GetExecutingAssembly());
+        Logger.LogInfo($"[IME debug] Renderer IME pipe client: {ImePipe.PipeDebugInfo}");
         Logger.LogInfo("ResoniteBetterIMESupport.Renderer loaded.");
     }
 }

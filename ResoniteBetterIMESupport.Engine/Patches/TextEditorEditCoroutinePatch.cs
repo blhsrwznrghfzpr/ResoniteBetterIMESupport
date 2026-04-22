@@ -26,7 +26,7 @@ static class TextEditorEditCoroutinePatch
     {
         var codes = instructions.ToList();
         var getKeyRepeatMethod = AccessTools.Method(typeof(InputInterface), nameof(InputInterface.GetKeyRepeat));
-        var suppressedEditingKeys = new HashSet<int>(ImeKeys.EditingKeys.Select(key => (int)key));
+        var suppressedEditingKeys = new HashSet<int>(ImeKeys.TextEditorEditingKeys.Select(key => (int)key));
         for (var i = 0; i < codes.Count; i++)
         {
             if (codes[i].opcode != OpCodes.Ldloc_3 || i + 1 >= codes.Count || codes[i + 1].opcode != OpCodes.Brfalse_S)

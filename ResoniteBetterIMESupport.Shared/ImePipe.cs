@@ -1,6 +1,8 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 
@@ -9,9 +11,11 @@ namespace ResoniteBetterIMESupport.Shared;
 internal static class ImePipe
 {
     const string BasePipeName = "ResoniteBetterIMESupport.IME.v1";
-    static readonly Lazy<string> PipeNameValue = new(BuildPipeName);
+    static readonly Lazy<PipeIdentity> PipeIdentityValue = new(BuildPipeIdentity);
 
-    public static string PipeName => PipeNameValue.Value;
+    public static string PipeName => PipeIdentityValue.Value.Name;
+
+    public static string PipeDebugInfo => PipeIdentityValue.Value.DebugInfo;
 
     public static string Encode(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
 
@@ -43,49 +47,96 @@ internal static class ImePipe
         }
     }
 
-    static string BuildPipeName()
+    static PipeIdentity BuildPipeIdentity()
     {
-        var sessionId = GetResoniteSessionId();
-
-        if (string.IsNullOrWhiteSpace(sessionId))
-            return BasePipeName;
-
-        return $"{BasePipeName}.{SanitizePipeNamePart(sessionId)}";
+        var process = Process.GetCurrentProcess();
+        var parentProcessId = TryGetParentProcessId(process.Id, out var parentId) ? parentId : -1;
+        var sessionProcessId = IsRendererProcess(process.ProcessName) && parentProcessId > 0 ? parentProcessId : process.Id;
+        var pipeName = $"{BasePipeName}.{sessionProcessId}";
+        var source = sessionProcessId == process.Id ? "current-process" : "parent-process";
+        var debugInfo = $"pipeName=\"{pipeName}\", source={source}, processName=\"{process.ProcessName}\", processId={process.Id}, parentProcessId={parentProcessId}";
+        return new PipeIdentity(pipeName, debugInfo);
     }
 
-    static string GetResoniteSessionId()
+    static bool IsRendererProcess(string processName) =>
+        processName.IndexOf("Renderer", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    static bool TryGetParentProcessId(int processId, out int parentProcessId)
     {
-        var args = Environment.GetCommandLineArgs();
+        parentProcessId = -1;
+        var snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 
-        for (var i = 0; i < args.Length - 1; i++)
+        if (snapshot == INVALID_HANDLE_VALUE)
+            return false;
+
+        try
         {
-            if (args[i].Equals("-shmprefix", StringComparison.OrdinalIgnoreCase))
-                return args[i + 1];
+            var entry = new PROCESSENTRY32 { dwSize = (uint)Marshal.SizeOf<PROCESSENTRY32>() };
 
-            if (!args[i].Equals("-QueueName", StringComparison.OrdinalIgnoreCase))
-                continue;
+            if (!Process32First(snapshot, ref entry))
+                return false;
 
-            var queueName = args[i + 1];
-            var separatorIndex = queueName.IndexOf('_');
-            return separatorIndex <= 0 ? queueName : queueName.Substring(0, separatorIndex);
+            do
+            {
+                if (entry.th32ProcessID != processId)
+                    continue;
+
+                parentProcessId = entry.th32ParentProcessID;
+                return true;
+            }
+            while (Process32Next(snapshot, ref entry));
+
+            return false;
         }
-
-        return string.Empty;
+        finally
+        {
+            CloseHandle(snapshot);
+        }
     }
 
-    static string SanitizePipeNamePart(string value)
+    readonly struct PipeIdentity
     {
-        var builder = new StringBuilder(value.Length);
-
-        foreach (var character in value)
+        public PipeIdentity(string name, string debugInfo)
         {
-            if (char.IsLetterOrDigit(character) || character == '.' || character == '-' || character == '_')
-                builder.Append(character);
-            else
-                builder.Append('_');
+            Name = name;
+            DebugInfo = debugInfo;
         }
 
-        return builder.ToString();
+        public string Name { get; }
+
+        public string DebugInfo { get; }
+    }
+
+    const uint TH32CS_SNAPPROCESS = 0x00000002;
+    static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool Process32First(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool Process32Next(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool CloseHandle(IntPtr hObject);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    struct PROCESSENTRY32
+    {
+        public uint dwSize;
+        public uint cntUsage;
+        public int th32ProcessID;
+        public IntPtr th32DefaultHeapID;
+        public uint th32ModuleID;
+        public uint cntThreads;
+        public int th32ParentProcessID;
+        public int pcPriClassBase;
+        public uint dwFlags;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szExeFile;
     }
 }
 
