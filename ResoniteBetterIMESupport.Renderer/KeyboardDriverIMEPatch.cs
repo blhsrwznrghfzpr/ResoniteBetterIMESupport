@@ -134,9 +134,9 @@ static class KeyboardDriverIMEPatch
         var state = GetState(driver);
         var typeDelta = GetTypeDelta(driver);
         var committedText = typeDelta?.ToString() ?? string.Empty;
-        var deletionKeyActive = IsCompositionDeletionKeyActive();
+        var deleteKeyActive = IsCompositionDeleteKeyActive();
 
-        if (deletionKeyActive && state.ImeComposition.Length > 0)
+        if (deleteKeyActive && state.ImeComposition.Length > 1)
             state.SuppressEmptyCompositionEndUntilTimestamp = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 10;
 
         if (compositionString.Length == 0 && state.ImeComposition.Length > 0 && IsSuppressingCompositionEndAfterDeletion(state)
@@ -191,7 +191,7 @@ static class KeyboardDriverIMEPatch
         state.CompositionCaretOffset = compositionString.Length;
     }
 
-    static bool IsCompositionDeletionKeyActive()
+    static bool IsCompositionDeleteKeyActive()
     {
         var keyboard = Keyboard.current;
 
@@ -199,9 +199,7 @@ static class KeyboardDriverIMEPatch
             return false;
 
         return keyboard.deleteKey.wasPressedThisFrame
-            || keyboard.deleteKey.isPressed
-            || keyboard.backspaceKey.wasPressedThisFrame
-            || keyboard.backspaceKey.isPressed;
+            || keyboard.deleteKey.isPressed;
     }
 
     static bool IsSuppressingCompositionEndAfterDeletion(DriverState state)
