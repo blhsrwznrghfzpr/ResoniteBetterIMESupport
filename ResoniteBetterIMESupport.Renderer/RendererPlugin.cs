@@ -9,7 +9,7 @@ namespace ResoniteBetterIMESupport.Renderer;
 [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
 public sealed class RendererPlugin : BaseUnityPlugin
 {
-    public const string PluginGuid = "dev.yoshi1123.resonite.ResoniteBetterIMESupport.Renderer";
+    public const string PluginGuid = "dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Renderer";
     public const string PluginName = "ResoniteBetterIMESupport.Renderer";
     public const string PluginVersion = "3.0.0";
 

@@ -42,9 +42,9 @@ Download the latest release ZIP from the [Releases](https://github.com/blhsrwznr
 For the Gale default profile, the files should be placed like this:
 
 - Engine plugin:
-  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\BepInEx\plugins\ResoniteBetterIMESupport\ResoniteBetterIMESupport.Engine.dll`
+  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport\ResoniteBetterIMESupport.Engine.dll`
 - Renderer plugin:
-  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\plugins\ResoniteBetterIMESupport\ResoniteBetterIMESupport.Renderer.dll`
+  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport\ResoniteBetterIMESupport.Renderer.dll`
 
 After installation, restart Resonite.
 
@@ -80,8 +80,8 @@ dotnet build ResoniteBetterIMESupport.sln -p:CopyToPlugins=true
 
 This copies:
 
-- `ResoniteBetterIMESupport.Renderer.dll` to `$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\ResoniteBetterIMESupport`
-- `ResoniteBetterIMESupport.Engine.dll` to `$(BepisLoaderProfilePath)\BepInEx\plugins\ResoniteBetterIMESupport`
+- `ResoniteBetterIMESupport.Renderer.dll` to `$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport`
+- `ResoniteBetterIMESupport.Engine.dll` to `$(BepisLoaderProfilePath)\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport`
 
 You can override paths when building:
 
@@ -103,8 +103,8 @@ Thunderstore packaging is configured by `thunderstore.toml`.
 
 The package contains both plugin sides:
 
-- `Renderer/BepInEx/plugins/ResoniteBetterIMESupport/ResoniteBetterIMESupport.Renderer.dll`
-- `plugins/ResoniteBetterIMESupport/ResoniteBetterIMESupport.Engine.dll`
+- `Renderer/BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Renderer.dll`
+- `plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Engine.dll`
 
 Build release binaries before packaging:
 
@@ -116,6 +116,6 @@ Then build the Thunderstore package with the configured tooling.
 
 ## Fork Notice
 
-This is a Resonite-focused fork maintained by yoshi1123_ / blhsrwznrghfzpr.
+This is a Resonite-focused fork maintained by blhsrwznrghfzpr.
 
 Original project: [hantabaru1014/NeosBetterIMESupport](https://github.com/hantabaru1014/NeosBetterIMESupport)

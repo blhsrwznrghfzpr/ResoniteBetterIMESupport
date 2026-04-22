@@ -10,7 +10,7 @@ namespace ResoniteBetterIMESupport.Engine;
 [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
 public sealed class EnginePlugin : BasePlugin
 {
-    public const string PluginGuid = "dev.yoshi1123.resonite.ResoniteBetterIMESupport.Engine";
+    public const string PluginGuid = "dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Engine";
     public const string PluginName = "ResoniteBetterIMESupport.Engine";
     public const string PluginVersion = "3.0.0";
 

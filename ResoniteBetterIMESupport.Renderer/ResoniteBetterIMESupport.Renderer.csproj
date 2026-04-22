@@ -5,7 +5,7 @@
     <LangVersion>latest</LangVersion>
     <BepisLoaderCorePath>$(BepisLoaderProfilePath)\Renderer\BepInEx\core</BepisLoaderCorePath>
     <RendererManagedPath>$(GamePath)\Renderer\Renderite.Renderer_Data\Managed</RendererManagedPath>
-    <PluginTargetDir>$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\ResoniteBetterIMESupport</PluginTargetDir>
+    <PluginTargetDir>$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport</PluginTargetDir>
   </PropertyGroup>
 
   <ItemGroup>
