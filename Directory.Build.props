@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <Version>3.0.0</Version>
+    <Authors>yoshi1123_</Authors>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Deterministic>true</Deterministic>
+    <CopyLocal>false</CopyLocal>
+    <CopyToPlugins Condition="'$(CopyToPlugins)'==''">false</CopyToPlugins>
+
+    <GamePath Condition="'$(ResonitePath)' != ''">$(ResonitePath)</GamePath>
+    <GamePath Condition="'$(GamePath)'=='' And Exists('$(LOCALAPPDATA)\RESO Launcher\profiles\01bepis\Game')">$(LOCALAPPDATA)\RESO Launcher\profiles\01bepis\Game</GamePath>
+    <GamePath Condition="'$(GamePath)'=='' And Exists('$(MSBuildProgramFiles32)\Steam\steamapps\common\Resonite')">$(MSBuildProgramFiles32)\Steam\steamapps\common\Resonite</GamePath>
+    <GamePath Condition="'$(GamePath)'=='' And Exists('$(HOME)/.steam/steam/steamapps/common/Resonite')">$(HOME)/.steam/steam/steamapps/common/Resonite</GamePath>
+
+    <BepisLoaderProfilePath Condition="'$(BepisLoaderProfilePath)'==''">$(APPDATA)\com.kesomannen.gale\resonite\profiles\Default</BepisLoaderProfilePath>
+  </PropertyGroup>
+</Project>

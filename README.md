@@ -28,6 +28,8 @@ Resonite runs the Unity renderer and the main engine in separate processes, so t
   - Draws the composition caret at the IME caret offset
 - `Shared/ImePipe.cs`
   - Shared named-pipe IPC layer used by both plugins
+- `Directory.Build.props`
+  - Shared build metadata and default Resonite/BepisLoader paths
 
 Both plugin sides are required. Installing only one side will not provide working IME composition support.
 
@@ -62,6 +64,8 @@ The project expects the Resonite game files and BepisLoader profile at these def
 - `GamePath`: `%LOCALAPPDATA%\RESO Launcher\profiles\01bepis\Game`
 - `BepisLoaderProfilePath`: `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default`
 
+`GamePath` is also auto-detected from common Steam install paths. You can set `ResonitePath` as a shorthand for `GamePath`.
+
 Build both plugins:
 
 ```powershell
@@ -83,6 +87,12 @@ You can override paths when building:
 
 ```powershell
 dotnet build ResoniteBetterIMESupport.sln -p:GamePath="C:\Path\To\Game" -p:BepisLoaderProfilePath="C:\Path\To\Profile"
+```
+
+or:
+
+```powershell
+dotnet build ResoniteBetterIMESupport.sln -p:ResonitePath="C:\Path\To\Game"
 ```
 
 If Resonite is running, the engine-side DLL may be locked. Close Resonite and run the copy build again.

@@ -16,8 +16,8 @@ jobs:
         run: |
           $shaShort = git rev-parse --short HEAD
           "sha_short=$shaShort" >> $env:GITHUB_OUTPUT
-          [xml]$project = Get-Content ResoniteBetterIMESupport.csproj
-          $version = $project.Project.PropertyGroup.Version
+          [xml]$props = Get-Content Directory.Build.props
+          $version = $props.Project.PropertyGroup.Version
           "version=$version" >> $env:GITHUB_OUTPUT
           "Version found: $version"
       - uses: actions/setup-dotnet@v4

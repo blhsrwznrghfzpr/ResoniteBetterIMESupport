@@ -1,9 +1,11 @@
-﻿var projectPath = "./ResoniteBetterIMESupport.csproj";
+var projectPath = "./ResoniteBetterIMESupport.csproj";
+var solutionPath = "./ResoniteBetterIMESupport.sln";
+var propsPath = "./Directory.Build.props";
 
 var target = Argument("target", "Default");
 var configuration = Argument("configuration", "Release");
 
-var packageVersion = XmlPeek(projectPath, "/Project/PropertyGroup/Version");
+var packageVersion = XmlPeek(propsPath, "/Project/PropertyGroup/Version");
 var distDir = Directory("./dist");
 
 Task("Clean")
@@ -25,7 +27,7 @@ Task("BuildPlugin")
 {
     Information($"Building ResoniteBetterIMESupport version {packageVersion}...");
 
-    DotNetBuild(projectPath, new DotNetBuildSettings
+    DotNetBuild(solutionPath, new DotNetBuildSettings
     {
         Configuration = configuration,
         Verbosity = DotNetVerbosity.Minimal

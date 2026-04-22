@@ -3,17 +3,9 @@
     <OutputType>Library</OutputType>
     <TargetFramework>net472</TargetFramework>
     <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <CopyLocal>false</CopyLocal>
-    <CopyToPlugins Condition="'$(CopyToPlugins)'==''">false</CopyToPlugins>
-    <GamePath Condition="'$(GamePath)'==''">$(LOCALAPPDATA)\RESO Launcher\profiles\01bepis\Game</GamePath>
-    <BepisLoaderProfilePath Condition="'$(BepisLoaderProfilePath)'==''">$(APPDATA)\com.kesomannen.gale\resonite\profiles\Default</BepisLoaderProfilePath>
     <BepisLoaderCorePath>$(BepisLoaderProfilePath)\Renderer\BepInEx\core</BepisLoaderCorePath>
     <RendererManagedPath>$(GamePath)\Renderer\Renderite.Renderer_Data\Managed</RendererManagedPath>
     <PluginTargetDir>$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\ResoniteBetterIMESupport</PluginTargetDir>
-    <Version>3.0.0</Version>
-    <Authors>yoshi1123_</Authors>
   </PropertyGroup>
 
   <ItemGroup>
