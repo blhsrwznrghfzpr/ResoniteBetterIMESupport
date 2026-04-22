@@ -1,4 +1,3 @@
-var projectPath = "./ResoniteBetterIMESupport.csproj";
 var solutionPath = "./ResoniteBetterIMESupport.sln";
 var propsPath = "./Directory.Build.props";
 

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net472</TargetFramework>
@@ -9,10 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="ResoniteBetterIMESupport.Engine\**\*.cs" />
-    <Compile Remove="ResoniteBetterIMESupport.Engine\obj\**\*.cs" />
-    <Compile Remove="ResoniteBetterIMESupport.Engine\bin\**\*.cs" />
-    <None Include="ResoniteBetterIMESupport.Engine\**\*" Exclude="ResoniteBetterIMESupport.Engine\bin\**\*;ResoniteBetterIMESupport.Engine\obj\**\*" />
+    <Compile Include="..\ResoniteBetterIMESupport.Shared\ImePipe.cs" Link="Shared\ImePipe.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -52,6 +49,6 @@
     </ItemGroup>
 
     <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(PluginTargetDir)" />
-    <Message Text="Copied plugin files to $(PluginTargetDir)" Importance="high" />
+    <Message Text="Copied renderer plugin files to $(PluginTargetDir)" Importance="high" />
   </Target>
 </Project>

@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\Shared\ImePipe.cs" Link="Shared\ImePipe.cs" />
+    <Compile Include="..\ResoniteBetterIMESupport.Shared\ImePipe.cs" Link="Shared\ImePipe.cs" />
   </ItemGroup>
 
   <ItemGroup>

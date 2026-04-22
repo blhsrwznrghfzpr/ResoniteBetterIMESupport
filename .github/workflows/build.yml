@@ -36,6 +36,6 @@ jobs:
         with:
           name: ResoniteBetterIMESupport-${{ steps.info.outputs.version }}-${{ steps.info.outputs.sha_short }}
           path: |
-            ./bin/Release/net472/*.dll
+            ./ResoniteBetterIMESupport.Renderer/bin/Release/net472/*.dll
             ./ResoniteBetterIMESupport.Engine/bin/Release/net10.0/*.dll
             ./build/*.zip

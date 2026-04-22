@@ -1,9 +1,6 @@
-﻿using BepInEx;
-using BepInEx.Logging;
 using HarmonyLib;
 using Renderite.Shared;
 using ResoniteBetterIMESupport.Shared;
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
@@ -15,38 +12,7 @@ using IMECompositionString = UnityEngine.InputSystem.LowLevel.IMECompositionStri
 using RenderiteKey = Renderite.Shared.Key;
 using RenderiteKeyboardState = Renderite.Shared.KeyboardState;
 
-namespace ResoniteBetterIMESupport;
-
-[BepInPlugin(PluginGuid, PluginName, PluginVersion)]
-public class ResoniteBetterIMESupport : BaseUnityPlugin
-{
-    public const string PluginGuid = "dev.yoshi1123.resonite.ResoniteBetterIMESupport";
-    public const string PluginName = "ResoniteBetterIMESupport";
-    public const string PluginVersion = "3.0.0";
-
-    internal static new ManualLogSource Logger = null!;
-
-    void Awake()
-    {
-        Logger = base.Logger;
-
-        WarnIfLegacyPluginIsLoaded();
-        new Harmony(PluginGuid).PatchAll(Assembly.GetExecutingAssembly());
-        Logger.LogInfo("ResoniteBetterIMESupport loaded.");
-    }
-
-    static void WarnIfLegacyPluginIsLoaded()
-    {
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            if (!string.Equals(assembly.GetName().Name, "NeosBetterIMESupport", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            Logger.LogWarning("Legacy NeosBetterIMESupport is also loaded. It attaches its own IME handler and can cause duplicated composition text. Remove or disable the old NeosBetterIMESupport plugin folder from BepInEx/plugins.");
-            return;
-        }
-    }
-}
+namespace ResoniteBetterIMESupport.Renderer;
 
 static class KeyboardDriverIMEPatch
 {
@@ -95,7 +61,7 @@ static class KeyboardDriverIMEPatch
 
         if (keyboard == null)
         {
-            ResoniteBetterIMESupport.Logger.LogWarning("Keyboard.current is null. IME composition support was not attached.");
+            RendererPlugin.Logger.LogWarning("Keyboard.current is null. IME composition support was not attached.");
             return;
         }
 
@@ -201,7 +167,7 @@ static class KeyboardDriverIMEPatch
 
         if (typeDelta == null)
         {
-            ResoniteBetterIMESupport.Logger.LogWarning("KeyboardDriver.typeDelta is null. IME composition update was skipped.");
+            RendererPlugin.Logger.LogWarning("KeyboardDriver.typeDelta is null. IME composition update was skipped.");
             return;
         }
 
@@ -410,7 +376,6 @@ static class KeyboardDriverIMEPatch
             return;
 
         state.CompositionCaretOffset = nextOffset;
-
         PipeClient.SendComposition(state.ImeComposition, string.Empty, state.CompositionCaretOffset);
     }
 
@@ -427,7 +392,17 @@ static class KeyboardDriverIMEPatch
         typeDelta.Length = length;
     }
 
-    public static string TakeTypeDeltaSuffix(object driver, int length)
+    public sealed class DriverState
+    {
+        public string ImeComposition = string.Empty;
+        public int CompositionCaretOffset = -1;
+        public int LastUpdateTypeDeltaLength = -1;
+        public long SuppressEmptyCompositionEndUntilTimestamp;
+        public Action<IMECompositionString>? CompositionHandler;
+        public readonly HashSet<RenderiteKey> PreviousHeldIMEEditingKeys = new();
+    }
+
+    static string TakeTypeDeltaSuffix(object driver, int length)
     {
         if (length < 0)
             return string.Empty;
@@ -442,7 +417,7 @@ static class KeyboardDriverIMEPatch
         return suffix;
     }
 
-    public static string TakeFullTypeDelta(object driver)
+    static string TakeFullTypeDelta(object driver)
     {
         var typeDelta = GetTypeDelta(driver);
 
@@ -452,67 +427,5 @@ static class KeyboardDriverIMEPatch
         var value = typeDelta.ToString();
         typeDelta.Length = 0;
         return value;
-    }
-
-    public sealed class DriverState
-    {
-        public string ImeComposition = string.Empty;
-        public int CompositionCaretOffset = -1;
-        public int LastUpdateTypeDeltaLength = -1;
-        public long SuppressEmptyCompositionEndUntilTimestamp;
-        public Action<IMECompositionString>? CompositionHandler;
-        public readonly HashSet<RenderiteKey> PreviousHeldIMEEditingKeys = new();
-    }
-}
-
-[HarmonyPatch]
-static class KeyboardDriverStartPatch
-{
-    static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "Start");
-
-    static void Postfix(object __instance) => KeyboardDriverIMEPatch.Subscribe(__instance);
-}
-
-[HarmonyPatch]
-static class KeyboardDriverOnDestroyPatch
-{
-    static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "OnDestroy");
-
-    static void Prefix(object __instance) => KeyboardDriverIMEPatch.Unsubscribe(__instance);
-}
-
-[HarmonyPatch]
-static class KeyboardDriverUpdateStatePatch
-{
-    static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "UpdateState");
-
-    static void Prefix(object __instance, out int __state)
-    {
-        var typeDelta = KeyboardDriverIMEPatch.GetTypeDelta(__instance);
-        __state = typeDelta?.Length ?? -1;
-        KeyboardDriverIMEPatch.GetState(__instance).LastUpdateTypeDeltaLength = __state;
-    }
-
-    static void Postfix(object __instance, RenderiteKeyboardState state, int __state)
-    {
-        if (KeyboardDriverIMEPatch.HasComposition(__instance))
-        {
-            if (__state >= 0)
-                KeyboardDriverIMEPatch.TrimTypeDelta(__instance, __state);
-
-            KeyboardDriverIMEPatch.RemoveIMEEditingKeys(state);
-        }
-    }
-}
-
-[HarmonyPatch]
-static class KeyboardDriverHandleOutputStatePatch
-{
-    static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "HandleOutputState");
-
-    static void Postfix(object __instance, OutputState output)
-    {
-        if (!output.keyboardInputActive)
-            KeyboardDriverIMEPatch.ClearComposition(__instance);
     }
 }

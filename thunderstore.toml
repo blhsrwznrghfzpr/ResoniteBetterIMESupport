@@ -20,11 +20,11 @@ readme = "./README.md"
 outdir = "./build"
 
 [[build.copy]]
-source = "./bin/Release/net472/ResoniteBetterIMESupport.dll"
+source = "./ResoniteBetterIMESupport.Renderer/bin/Release/net472/ResoniteBetterIMESupport.Renderer.dll"
 target = "Renderer/BepInEx/plugins/ResoniteBetterIMESupport/"
 
 [[build.copy]]
-source = "./bin/Release/net472/ResoniteBetterIMESupport.pdb"
+source = "./ResoniteBetterIMESupport.Renderer/bin/Release/net472/ResoniteBetterIMESupport.Renderer.pdb"
 target = "Renderer/BepInEx/plugins/ResoniteBetterIMESupport/"
 
 [[build.copy]]

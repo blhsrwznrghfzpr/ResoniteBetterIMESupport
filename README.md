@@ -15,7 +15,7 @@ Related issue: [Yellow-Dog-Man/Resonite-Issues#745](https://github.com/Yellow-Do
 
 Resonite runs the Unity renderer and the main engine in separate processes, so this mod is split into two plugins:
 
-- `ResoniteBetterIMESupport.csproj`
+- `ResoniteBetterIMESupport.Renderer/ResoniteBetterIMESupport.Renderer.csproj`
   - Renderer-side plugin
   - Targets `net472`
   - Hooks Unity InputSystem IME composition events
@@ -26,7 +26,7 @@ Resonite runs the Unity renderer and the main engine in separate processes, so t
   - Patches FrooxEngine text editing and text rendering
   - Applies IME composition to the active `IText`
   - Draws the composition caret at the IME caret offset
-- `Shared/ImePipe.cs`
+- `ResoniteBetterIMESupport.Shared/ImePipe.cs`
   - Shared named-pipe IPC layer used by both plugins
 - `Directory.Build.props`
   - Shared build metadata and default Resonite/BepisLoader paths
@@ -44,7 +44,7 @@ For the Gale default profile, the files should be placed like this:
 - Engine plugin:
   - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\BepInEx\plugins\ResoniteBetterIMESupport\ResoniteBetterIMESupport.Engine.dll`
 - Renderer plugin:
-  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\plugins\ResoniteBetterIMESupport\ResoniteBetterIMESupport.dll`
+  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\plugins\ResoniteBetterIMESupport\ResoniteBetterIMESupport.Renderer.dll`
 
 After installation, restart Resonite.
 
@@ -55,7 +55,7 @@ To confirm both sides loaded, check the logs:
   - Look for `ResoniteBetterIMESupport.Engine loaded.`
 - Renderer log:
   - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\LogOutput.log`
-  - Look for `ResoniteBetterIMESupport loaded.`
+  - Look for `ResoniteBetterIMESupport.Renderer loaded.`
 
 ## Development
 
@@ -80,7 +80,7 @@ dotnet build ResoniteBetterIMESupport.sln -p:CopyToPlugins=true
 
 This copies:
 
-- `ResoniteBetterIMESupport.dll` to `$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\ResoniteBetterIMESupport`
+- `ResoniteBetterIMESupport.Renderer.dll` to `$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\ResoniteBetterIMESupport`
 - `ResoniteBetterIMESupport.Engine.dll` to `$(BepisLoaderProfilePath)\BepInEx\plugins\ResoniteBetterIMESupport`
 
 You can override paths when building:
@@ -103,7 +103,7 @@ Thunderstore packaging is configured by `thunderstore.toml`.
 
 The package contains both plugin sides:
 
-- `Renderer/BepInEx/plugins/ResoniteBetterIMESupport/ResoniteBetterIMESupport.dll`
+- `Renderer/BepInEx/plugins/ResoniteBetterIMESupport/ResoniteBetterIMESupport.Renderer.dll`
 - `plugins/ResoniteBetterIMESupport/ResoniteBetterIMESupport.Engine.dll`
 
 Build release binaries before packaging:
