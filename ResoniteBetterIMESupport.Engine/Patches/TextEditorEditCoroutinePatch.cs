@@ -32,7 +32,9 @@ static class TextEditorEditCoroutinePatch
             (int)Key.RightArrow,
             (int)Key.LeftArrow,
             (int)Key.Backspace,
-            (int)Key.Delete
+            (int)Key.Delete,
+            (int)Key.Home,
+            (int)Key.End
         };
         for (var i = 0; i < codes.Count; i++)
         {
