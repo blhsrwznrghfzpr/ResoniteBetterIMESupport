@@ -9,7 +9,7 @@ static class TextEditorDeleteSelectionPatch
     static bool Prefix()
     {
         var suppress = EngineIMEPatch.ShouldSuppressTextEditorDeletion;
-        EnginePlugin.Log.LogInfo($"[IME debug] TextEditor.DeleteSelection Prefix suppress={suppress}, {EngineIMEPatch.DebugState}");
+        EnginePlugin.LogDebugIme($"TextEditor.DeleteSelection Prefix suppress={suppress}, {EngineIMEPatch.DebugState}");
         return !suppress;
     }
 }
@@ -20,7 +20,7 @@ static class TextEditorDeletePatch
     static bool Prefix()
     {
         var suppress = EngineIMEPatch.ShouldSuppressTextEditorDeletion;
-        EnginePlugin.Log.LogInfo($"[IME debug] TextEditor.Delete Prefix suppress={suppress}, {EngineIMEPatch.DebugState}");
+        EnginePlugin.LogDebugIme($"TextEditor.Delete Prefix suppress={suppress}, {EngineIMEPatch.DebugState}");
         return !suppress;
     }
 }
@@ -31,7 +31,7 @@ static class TextEditorBackspacePatch
     static bool Prefix()
     {
         var suppress = EngineIMEPatch.ShouldSuppressTextEditorDeletion;
-        EnginePlugin.Log.LogInfo($"[IME debug] TextEditor.Backspace Prefix suppress={suppress}, {EngineIMEPatch.DebugState}");
+        EnginePlugin.LogDebugIme($"TextEditor.Backspace Prefix suppress={suppress}, {EngineIMEPatch.DebugState}");
         return !suppress;
     }
 }

@@ -320,5 +320,5 @@ static class EngineIMEPatch
     static string EscapeForLog(string value) =>
         value.Replace("\\", "\\\\").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");
 
-    static void DebugLog(string message) => EnginePlugin.Log.LogInfo($"[IME debug] {message}");
+    static void DebugLog(string message) => EnginePlugin.LogDebugIme(message);
 }

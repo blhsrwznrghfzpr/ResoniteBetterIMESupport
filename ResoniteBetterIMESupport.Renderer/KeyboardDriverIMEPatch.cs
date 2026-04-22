@@ -484,5 +484,5 @@ static class KeyboardDriverIMEPatch
     static string EscapeForLog(string value) =>
         value.Replace("\\", "\\\\").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");
 
-    static void DebugLog(string message) => RendererPlugin.Logger.LogInfo($"[IME debug] {message}");
+    static void DebugLog(string message) => RendererPlugin.LogDebugIme(message);
 }
