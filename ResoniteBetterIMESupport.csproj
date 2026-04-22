@@ -1,0 +1,65 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <CopyLocal>false</CopyLocal>
+    <CopyToPlugins Condition="'$(CopyToPlugins)'==''">false</CopyToPlugins>
+    <GamePath Condition="'$(GamePath)'==''">$(LOCALAPPDATA)\RESO Launcher\profiles\01bepis\Game</GamePath>
+    <BepisLoaderProfilePath Condition="'$(BepisLoaderProfilePath)'==''">$(APPDATA)\com.kesomannen.gale\resonite\profiles\Default</BepisLoaderProfilePath>
+    <BepisLoaderCorePath>$(BepisLoaderProfilePath)\Renderer\BepInEx\core</BepisLoaderCorePath>
+    <RendererManagedPath>$(GamePath)\Renderer\Renderite.Renderer_Data\Managed</RendererManagedPath>
+    <PluginTargetDir>$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\ResoniteBetterIMESupport</PluginTargetDir>
+    <Version>3.0.0</Version>
+    <Authors>yoshi1123_</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="ResoniteBetterIMESupport.Engine\**\*.cs" />
+    <Compile Remove="ResoniteBetterIMESupport.Engine\obj\**\*.cs" />
+    <Compile Remove="ResoniteBetterIMESupport.Engine\bin\**\*.cs" />
+    <None Include="ResoniteBetterIMESupport.Engine\**\*" Exclude="ResoniteBetterIMESupport.Engine\bin\**\*;ResoniteBetterIMESupport.Engine\obj\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>$(BepisLoaderCorePath)\BepInEx.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepisLoaderCorePath)\0Harmony.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Renderite.Shared">
+      <HintPath>$(RendererManagedPath)\Renderite.Shared.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(RendererManagedPath)\Unity.InputSystem.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(RendererManagedPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(RendererManagedPath)\UnityEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToPlugins)'=='true'">
+    <ItemGroup>
+      <PluginFiles Include="$(TargetPath)" />
+      <PluginFiles Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(PluginTargetDir)" />
+    <Message Text="Copied plugin files to $(PluginTargetDir)" Importance="high" />
+  </Target>
+</Project>

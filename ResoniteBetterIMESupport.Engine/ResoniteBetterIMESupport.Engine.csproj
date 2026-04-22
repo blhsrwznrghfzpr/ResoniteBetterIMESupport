@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <CopyLocal>false</CopyLocal>
+    <CopyToPlugins Condition="'$(CopyToPlugins)'==''">false</CopyToPlugins>
+    <GamePath Condition="'$(GamePath)'==''">$(LOCALAPPDATA)\RESO Launcher\profiles\01bepis\Game</GamePath>
+    <BepisLoaderProfilePath Condition="'$(BepisLoaderProfilePath)'==''">$(APPDATA)\com.kesomannen.gale\resonite\profiles\Default</BepisLoaderProfilePath>
+    <BepisLoaderCorePath>$(BepisLoaderProfilePath)\BepInEx\core</BepisLoaderCorePath>
+    <PluginTargetDir>$(BepisLoaderProfilePath)\BepInEx\plugins\ResoniteBetterIMESupport</PluginTargetDir>
+    <Version>3.0.0</Version>
+    <Authors>yoshi1123_</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\ImePipe.cs" Link="Shared\ImePipe.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx.Core">
+      <HintPath>$(BepisLoaderCorePath)\BepInEx.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="BepInEx.NET.Common">
+      <HintPath>$(BepisLoaderCorePath)\BepInEx.NET.Common.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepisLoaderCorePath)\0Harmony.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="FrooxEngine">
+      <HintPath>$(GamePath)\FrooxEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Elements.Core">
+      <HintPath>$(GamePath)\Elements.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Elements.Assets">
+      <HintPath>$(GamePath)\Elements.Assets.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Renderite.Shared">
+      <HintPath>$(GamePath)\Renderite.Shared.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToPlugins)'=='true'">
+    <ItemGroup>
+      <PluginFiles Include="$(TargetPath)" />
+      <PluginFiles Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(PluginTargetDir)" />
+    <Message Text="Copied engine plugin files to $(PluginTargetDir)" Importance="high" />
+  </Target>
+</Project>

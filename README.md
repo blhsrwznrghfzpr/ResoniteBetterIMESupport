@@ -1,19 +1,111 @@
-# NeosBetterIMESupport
+# ResoniteBetterIMESupport
 
-**Also supports Resonite!**
+A BepInEx plugin for Resonite that improves IME composition handling for input methods such as Japanese.
 
-A [NeosModLoader](https://github.com/zkxs/NeosModLoader) / [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader) mod that fix issues in IME with complex input methods like Japanese.
+This mod keeps IME composition text synchronized while editing UIX text, including:
 
-[Related issue](https://github.com/Yellow-Dog-Man/Resonite-Issues/issues/745). You can upvote or comment.
+- showing the IME composition caret at the correct position
+- moving the caret inside unconfirmed composition text
+- editing composition text with Delete/Backspace without letting Resonite delete the whole composition range
+- committing composition text through the normal IME flow
 
-Desktopモードで日本語入力する際に未確定候補がUIX上で見えないのを直すModです。詳しくは下の動画を見てください。
+Related issue: [Yellow-Dog-Man/Resonite-Issues#745](https://github.com/Yellow-Dog-Man/Resonite-Issues/issues/745)
 
-https://user-images.githubusercontent.com/16133291/200890052-040475d1-109d-49d4-bd29-664d1912e4ee.mp4
+## Project Layout
 
-## For Resonite  
-v2.x is for [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader).  
+Resonite runs the Unity renderer and the main engine in separate processes, so this mod is split into two plugins:
+
+- `ResoniteBetterIMESupport.csproj`
+  - Renderer-side plugin
+  - Targets `net472`
+  - Hooks Unity InputSystem IME composition events
+  - Sends composition text, committed text, and caret offsets to the engine plugin
+- `ResoniteBetterIMESupport.Engine/ResoniteBetterIMESupport.Engine.csproj`
+  - Engine-side plugin
+  - Targets `net10.0`
+  - Patches FrooxEngine text editing and text rendering
+  - Applies IME composition to the active `IText`
+  - Draws the composition caret at the IME caret offset
+- `Shared/ImePipe.cs`
+  - Shared named-pipe IPC layer used by both plugins
+
+Both plugin sides are required. Installing only one side will not provide working IME composition support.
 
 ## Installation
-1. Install [NeosModLoader](https://github.com/zkxs/NeosModLoader).
-2. Place [NeosBetterIMESupport.dll](https://github.com/hantabaru1014/NeosBetterIMESupport/releases/latest/download/NeosBetterIMESupport.dll) into your `nml_mods` folder. This folder should be at `C:\Program Files (x86)\Steam\steamapps\common\NeosVR\nml_mods` for a default install. You can create it if it's missing, or if you launch the game once with NeosModLoader installed it will create the folder for you.
-3. Start the game. If you want to verify that the mod is working you can check your Neos logs.
+
+Install [BepisLoader](https://github.com/ResoniteModding/BepisLoader) for Resonite.
+
+Download the latest release ZIP from the [Releases](https://github.com/blhsrwznrghfzpr/ResoniteBetterIMESupport/releases) page and extract it into your BepInEx/BepisLoader profile.
+
+For the Gale default profile, the files should be placed like this:
+
+- Engine plugin:
+  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\BepInEx\plugins\ResoniteBetterIMESupport\ResoniteBetterIMESupport.Engine.dll`
+- Renderer plugin:
+  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\plugins\ResoniteBetterIMESupport\ResoniteBetterIMESupport.dll`
+
+After installation, restart Resonite.
+
+To confirm both sides loaded, check the logs:
+
+- Engine log:
+  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\BepInEx\LogOutput.log`
+  - Look for `ResoniteBetterIMESupport.Engine loaded.`
+- Renderer log:
+  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\LogOutput.log`
+  - Look for `ResoniteBetterIMESupport loaded.`
+
+## Development
+
+The project expects the Resonite game files and BepisLoader profile at these default paths:
+
+- `GamePath`: `%LOCALAPPDATA%\RESO Launcher\profiles\01bepis\Game`
+- `BepisLoaderProfilePath`: `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default`
+
+Build both plugins:
+
+```powershell
+dotnet build ResoniteBetterIMESupport.sln
+```
+
+Build and copy both plugins into the Gale default profile:
+
+```powershell
+dotnet build ResoniteBetterIMESupport.sln -p:CopyToPlugins=true
+```
+
+This copies:
+
+- `ResoniteBetterIMESupport.dll` to `$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\ResoniteBetterIMESupport`
+- `ResoniteBetterIMESupport.Engine.dll` to `$(BepisLoaderProfilePath)\BepInEx\plugins\ResoniteBetterIMESupport`
+
+You can override paths when building:
+
+```powershell
+dotnet build ResoniteBetterIMESupport.sln -p:GamePath="C:\Path\To\Game" -p:BepisLoaderProfilePath="C:\Path\To\Profile"
+```
+
+If Resonite is running, the engine-side DLL may be locked. Close Resonite and run the copy build again.
+
+## Packaging
+
+Thunderstore packaging is configured by `thunderstore.toml`.
+
+The package contains both plugin sides:
+
+- `Renderer/BepInEx/plugins/ResoniteBetterIMESupport/ResoniteBetterIMESupport.dll`
+- `plugins/ResoniteBetterIMESupport/ResoniteBetterIMESupport.Engine.dll`
+
+Build release binaries before packaging:
+
+```powershell
+dotnet build ResoniteBetterIMESupport.sln -c Release
+```
+
+Then build the Thunderstore package with the configured tooling.
+
+## Fork Notice
+
+This is a Resonite-focused fork maintained by yoshi1123_ / blhsrwznrghfzpr.
+
+Original project: [hantabaru1014/NeosBetterIMESupport](https://github.com/hantabaru1014/NeosBetterIMESupport)

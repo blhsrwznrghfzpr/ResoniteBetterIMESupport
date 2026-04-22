@@ -1,0 +1,46 @@
+﻿# This file is used by the Thunderstore CLI to build and publish your mod to Thunderstore. https://github.com/thunderstore-io/thunderstore-cli
+
+[config]
+schemaVersion = "0.0.1"
+
+[package]
+namespace = "blhsrwznrghfzpr"
+name = "ResoniteBetterIMESupport"
+versionNumber = "3.0.0"
+description = "Fixes IME composition display issues in Resonite with complex input methods such as Japanese"
+websiteUrl = "https://github.com/blhsrwznrghfzpr/ResoniteBetterIMESupport"
+containsNsfwContent = false
+
+[package.dependencies]
+ResoniteModding-BepisLoader = "1.5.0"
+
+[build]
+readme = "./README.md"
+outdir = "./build"
+
+[[build.copy]]
+source = "./bin/Release/net472/ResoniteBetterIMESupport.dll"
+target = "Renderer/BepInEx/plugins/ResoniteBetterIMESupport/"
+
+[[build.copy]]
+source = "./bin/Release/net472/ResoniteBetterIMESupport.pdb"
+target = "Renderer/BepInEx/plugins/ResoniteBetterIMESupport/"
+
+[[build.copy]]
+source = "./ResoniteBetterIMESupport.Engine/bin/Release/net10.0/ResoniteBetterIMESupport.Engine.dll"
+target = "plugins/ResoniteBetterIMESupport/"
+
+[[build.copy]]
+source = "./ResoniteBetterIMESupport.Engine/bin/Release/net10.0/ResoniteBetterIMESupport.Engine.pdb"
+target = "plugins/ResoniteBetterIMESupport/"
+
+[[build.copy]]
+source = "./LICENSE"
+target = "/"
+
+[publish]
+repository = "https://thunderstore.io"
+communities = ["resonite"]
+
+[publish.categories]
+resonite = ["mods"]
