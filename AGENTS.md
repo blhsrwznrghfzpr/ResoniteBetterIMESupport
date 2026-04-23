@@ -65,6 +65,8 @@ If copy-to-profile fails, check whether Resonite is still running and locking th
 - Keep IME debug logging behind the `Debug/EnableDebugLogging` config entry on both sides. Verbose logs should go through `LogDebugIme`.
 - Harmony patches depend on private Resonite/FrooxEngine/Renderite implementation details. Prefer small, targeted patches with clear failure messages when reflected members are missing.
 - Be careful with composition deletion/caret behavior for Japanese IME: Backspace/Delete/Home/End/Left/Right during unconfirmed composition should not let Resonite delete the whole visual composition range.
+- Only suppress TextEditor editing keys while an unconfirmed composition range actually exists in the edited text. After Enter commits and no composition range remains, Backspace/Delete must pass through normally even if transient IME bookkeeping flags are still settling.
+- Do not suppress TextEditor control `TypeDelta` values such as `\b`, `\n`, or `\r` in the generic IME duplicate filter. Backspace/Delete protection belongs to active composition range checks, while Shift+Enter/newline handling must remain available as normal editor input.
 - Treat surrogate pairs carefully when moving caret positions; avoid splitting surrogate code units.
 
 ## Testing Focus

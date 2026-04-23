@@ -20,12 +20,14 @@ static class EngineIMEPatch
     static int _suppressKeyboardTypeDeltaUpdates;
     static readonly Queue<string> PendingSuppressedTypeDeltas = new();
 
-    public static bool IsTypingUnsettled => _isTypingUnsettled;
+    public static bool HasActiveComposition => _isTypingUnsettled && HasCompositionRange;
+
+    public static bool IsTypingUnsettled => HasActiveComposition;
 
     public static bool ShouldSuppressTextEditorKey(Key key) =>
-        _isTypingUnsettled && (key == Key.Backspace || key == Key.Delete);
+        HasActiveComposition && (key == Key.Backspace || key == Key.Delete);
 
-    public static bool ShouldSuppressTextEditorDeletion => _isTypingUnsettled && IsCompositionVisualSelectionActive;
+    public static bool ShouldSuppressTextEditorDeletion => HasActiveComposition && IsCompositionVisualSelectionActive;
 
     public static string DebugState => BuildDebugState();
 
@@ -82,15 +84,15 @@ static class EngineIMEPatch
         if (typeDelta.Length == 0)
             return false;
 
+        if (IsTextEditorControlTypeDelta(typeDelta))
+            return false;
+
         if (TryConsumePendingSuppressedTypeDelta(typeDelta, out var pendingSuppressedTypeDelta))
         {
             filteredTypeDelta = typeDelta.Remove(pendingSuppressedTypeDelta.Start, pendingSuppressedTypeDelta.Length);
             DebugLog($"Suppressing pending IME TypeDelta: typeDelta=\"{EscapeForLog(typeDelta)}\", filtered=\"{EscapeForLog(filteredTypeDelta)}\", {DebugState}");
             return true;
         }
-
-        if (ContainsTextEditorLineBreak(typeDelta))
-            return false;
 
         if (_suppressKeyboardTypeDeltaUpdates <= 0)
             return false;
@@ -101,7 +103,8 @@ static class EngineIMEPatch
         return true;
     }
 
-    static bool ContainsTextEditorLineBreak(string typeDelta) => typeDelta.IndexOfAny(new[] { '\n', '\r' }) >= 0;
+    static bool IsTextEditorControlTypeDelta(string typeDelta) =>
+        typeDelta.Length == 1 && (typeDelta[0] == '\b' || typeDelta[0] == '\n' || typeDelta[0] == '\r');
 
     public static bool ApplyKeyboardStateComposition(bool active, string composition, int selectionStart, int selectionLength, string committedText)
     {
