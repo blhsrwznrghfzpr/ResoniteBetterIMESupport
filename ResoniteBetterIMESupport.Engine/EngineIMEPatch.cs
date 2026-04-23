@@ -38,8 +38,9 @@ static class EngineIMEPatch
     public static void Start()
     {
         Stop();
-        DebugLog($"Starting IME InterprocessLib receiver: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\"");
-        _messenger = new Messenger(ImeInterprocessChannel.OwnerId);
+        var queueName = ImeInterprocessQueue.GetQueueName();
+        DebugLog($"Starting IME InterprocessLib receiver: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\", queueName=\"{queueName}\"");
+        _messenger = new Messenger(ImeInterprocessChannel.OwnerId, true, queueName);
         _messenger.ReceiveObject<ImeInterprocessMessage>(ImeInterprocessChannel.MessageId, OnMessage);
     }
 

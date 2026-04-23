@@ -11,11 +11,7 @@
   <ItemGroup>
     <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeKeys.cs" Link="Shared\ImeKeys.cs" />
     <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeInterprocessMessage.cs" Link="Shared\ImeInterprocessMessage.cs" />
-    <Compile Include="..\..\ResoniteInterprocessLib\InterprocessLib.Shared\Commands.cs" Link="InterprocessLib\Commands.cs" />
-    <Compile Include="..\..\ResoniteInterprocessLib\InterprocessLib.Shared\Messenger.cs" Link="InterprocessLib\Messenger.cs" />
-    <Compile Include="..\..\ResoniteInterprocessLib\InterprocessLib.Shared\System.cs" Link="InterprocessLib\System.cs" />
-    <Compile Include="..\..\ResoniteInterprocessLib\InterprocessLib.Shared\TypeManager.cs" Link="InterprocessLib\TypeManager.cs" />
-    <Compile Include="..\..\ResoniteInterprocessLib\InterprocessLib.Unity\UnityInit.cs" Link="InterprocessLib\UnityInit.cs" />
+    <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeInterprocessQueue.cs" Link="Shared\ImeInterprocessQueue.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,8 +30,8 @@
       <HintPath>$(RendererManagedPath)\Renderite.Shared.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Renderite.Unity">
-      <HintPath>$(RendererManagedPath)\Renderite.Unity.dll</HintPath>
+    <Reference Include="InterprocessLib.Unity">
+      <HintPath>$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\Nytra-InterprocessLib\InterprocessLib.BepInEx\InterprocessLib.Unity.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.InputSystem">
@@ -50,10 +46,6 @@
       <HintPath>$(RendererManagedPath)\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="System.Memory" Version="4.6.3" />
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToPlugins)'=='true'">

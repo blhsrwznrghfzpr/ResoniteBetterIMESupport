@@ -40,7 +40,8 @@ static class KeyboardDriverIMEPatch
         if (_messenger != null)
             return;
 
-        _messenger = new Messenger(ImeInterprocessChannel.OwnerId);
+        var queueName = ImeInterprocessQueue.GetQueueName();
+        _messenger = new Messenger(ImeInterprocessChannel.OwnerId, false, queueName);
         LogMessengerIdentityOnce();
     }
 
@@ -87,7 +88,7 @@ static class KeyboardDriverIMEPatch
             return;
 
         _messengerIdentityLogged = true;
-        DebugLog($"Renderer IME InterprocessLib sender: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\"");
+        DebugLog($"Renderer IME InterprocessLib sender: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\", queueName=\"{ImeInterprocessQueue.GetQueueName()}\"");
     }
 
     public static void Unsubscribe(object driver)

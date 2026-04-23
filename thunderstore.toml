@@ -12,7 +12,8 @@ websiteUrl = "https://github.com/blhsrwznrghfzpr/ResoniteBetterIMESupport"
 containsNsfwContent = false
 
 [package.dependencies]
-ResoniteModding-BepisLoader = "1.5.0"
+ResoniteModding-BepisLoader = "1.5.1"
+Nytra-InterprocessLib = "3.0.0"
 
 [build]
 icon = "./icon.png"
