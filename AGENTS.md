@@ -58,6 +58,7 @@ If copy-to-profile fails, check whether Resonite is still running and locking th
 - Japanese IMEs commonly commit the selected clause implicitly when the user starts typing the next word. When `KeyboardState` contains both committed `typeDelta` and a non-empty next composition in the same update, commit the text into the old composition range first, clear `InputInterface.TypeDelta`, then apply the new preedit range.
 - Older Renderite builds may lack `KeyboardState` composition fields, so the named-pipe fallback must also handle implicit clause commits. If an existing composition is still active and a short starter preedit arrives with no committed text, commit the old composition range before inserting the new preedit; avoid treating CJK candidate updates as starters.
 - When the named-pipe fallback handles IME composition or committed text, suppress the corresponding `InputInterface.TypeDelta` until a non-empty update is seen. For implicit commits, also remember the committed composition text and suppress an exact matching later `TypeDelta`; Japanese IMEs can deliver that duplicate commit after several empty keyboard updates.
+- When a named-pipe IME message contains both committed text and a new non-empty composition, commit the text first, start the new composition second, and suppress only the exact committed text from later `TypeDelta` updates. Avoid broad TypeDelta suppression in this path because it can consume the first character of the next word.
 - Never suppress a line-break `TypeDelta` (`\n` or `\r`) in the engine fallback. Resonite's `TextEditor` relies on Shift being held while that delta is processed to distinguish Shift+Enter newline from Enter submit. If duplicate committed IME text and a line break arrive in the same `TypeDelta`, filter only the duplicate text and leave the line break.
 - The unreleased Renderite/Renderite.Unity.Renderer concept implementation already writes `Input.compositionString` into `KeyboardState` during `KeyboardDriver.UpdateState`. When that contract exists, merge the original `KeyboardState` composition in the renderer postfix instead of blindly overwriting it with MOD-local event state.
 - Preserve the named-pipe protocol in `Shared/ImePipe.cs`: base64 fields separated by tabs, carrying composition, committed text, and caret offset. If the message format changes, update both sides together and consider a pipe-name version bump.
@@ -67,6 +68,7 @@ If copy-to-profile fails, check whether Resonite is still running and locking th
 - Be careful with composition deletion/caret behavior for Japanese IME: Backspace/Delete/Home/End/Left/Right during unconfirmed composition should not let Resonite delete the whole visual composition range.
 - Only suppress TextEditor editing keys while an unconfirmed composition range actually exists in the edited text. After Enter commits and no composition range remains, Backspace/Delete must pass through normally even if transient IME bookkeeping flags are still settling.
 - Do not suppress TextEditor control `TypeDelta` values such as `\b`, `\n`, or `\r` in the generic IME duplicate filter. Backspace/Delete protection belongs to active composition range checks, while Shift+Enter/newline handling must remain available as normal editor input.
+- When a `TypeDelta` exactly matches the current visual composition, treat it as a real commit signal rather than generic duplicate text. Some IMEs/Unity frames can still report `compositionActive=true` for the same text immediately after Enter, so ignore that stale active composition after consuming the commit.
 - Treat surrogate pairs carefully when moving caret positions; avoid splitting surrogate code units.
 
 ## Testing Focus
@@ -83,12 +85,12 @@ If only build validation was possible, say so explicitly in the final response.
 
 ## Completion Build
 
-At the end of implementation work, enable debug logging in both installed BepInEx config files before running the replacement build:
+At the end of every implementation task, run the replacement build before reporting completion. First enable debug logging in both installed BepInEx config files:
 
 - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\BepInEx\config\dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Engine.cfg`
 - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\config\dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Renderer.cfg`
 
-Set `EnableDebugLogging = true` in both files, then run:
+Set `EnableDebugLogging = true` in both files, then run this Release copy build:
 
 ```powershell
 dotnet build ResoniteBetterIMESupport.sln -c Release -p:CopyToPlugins=true

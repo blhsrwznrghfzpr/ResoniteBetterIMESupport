@@ -18,6 +18,7 @@ static class EngineIMEPatch
     static int _compositionStart = -1;
     static int _compositionCaretOffset = -1;
     static int _suppressKeyboardTypeDeltaUpdates;
+    static int _suppressStandardTypeDeltaWhileImeActiveUpdates;
     static readonly Queue<string> PendingSuppressedTypeDeltas = new();
 
     public static bool HasActiveComposition => _isTypingUnsettled && HasCompositionRange;
@@ -53,6 +54,7 @@ static class EngineIMEPatch
         _compositionStart = -1;
         _compositionCaretOffset = -1;
         _suppressKeyboardTypeDeltaUpdates = 0;
+        _suppressStandardTypeDeltaWhileImeActiveUpdates = 0;
         PendingSuppressedTypeDeltas.Clear();
     }
 
@@ -65,6 +67,7 @@ static class EngineIMEPatch
         _compositionStart = -1;
         _compositionCaretOffset = -1;
         _suppressKeyboardTypeDeltaUpdates = 0;
+        _suppressStandardTypeDeltaWhileImeActiveUpdates = 0;
         PendingSuppressedTypeDeltas.Clear();
     }
 
@@ -90,7 +93,17 @@ static class EngineIMEPatch
         if (TryConsumePendingSuppressedTypeDelta(typeDelta, out var pendingSuppressedTypeDelta))
         {
             filteredTypeDelta = typeDelta.Remove(pendingSuppressedTypeDelta.Start, pendingSuppressedTypeDelta.Length);
+            if (filteredTypeDelta.Length > 0 && !IsTextEditorControlTypeDelta(filteredTypeDelta) && ShouldSuppressStandardTypeDeltaWhileImeActive(filteredTypeDelta))
+                filteredTypeDelta = string.Empty;
+
             DebugLog($"Suppressing pending IME TypeDelta: typeDelta=\"{EscapeForLog(typeDelta)}\", filtered=\"{EscapeForLog(filteredTypeDelta)}\", {DebugState}");
+            return true;
+        }
+
+        if (ShouldSuppressStandardTypeDeltaWhileImeActive(typeDelta))
+        {
+            filteredTypeDelta = string.Empty;
+            DebugLog($"Suppressing standard TypeDelta while IME is handled by mod path: typeDelta=\"{EscapeForLog(typeDelta)}\", {DebugState}");
             return true;
         }
 
@@ -106,6 +119,21 @@ static class EngineIMEPatch
     static bool IsTextEditorControlTypeDelta(string typeDelta) =>
         typeDelta.Length == 1 && (typeDelta[0] == '\b' || typeDelta[0] == '\n' || typeDelta[0] == '\r');
 
+    static bool ShouldSuppressStandardTypeDeltaWhileImeActive(string typeDelta)
+    {
+        if (HasCompositionRange && typeDelta == _composition)
+            return true;
+
+        if (HasActiveComposition)
+            return true;
+
+        if (_suppressStandardTypeDeltaWhileImeActiveUpdates <= 0)
+            return false;
+
+        _suppressStandardTypeDeltaWhileImeActiveUpdates--;
+        return true;
+    }
+
     public static bool ApplyKeyboardStateComposition(bool active, string composition, int selectionStart, int selectionLength, string committedText)
     {
         var text = _editingText;
@@ -114,10 +142,18 @@ static class EngineIMEPatch
         if (text == null)
             return false;
 
+        var committedCurrentComposition = HasCompositionRange && committedText == _composition;
+
         if (committedText.Length > 0)
         {
             CommitText(committedText);
             consumedCommittedText = true;
+        }
+
+        if (active && committedCurrentComposition && composition == committedText)
+        {
+            DebugLog($"ApplyKeyboardStateComposition ignored stale active composition after commit: committed=\"{EscapeForLog(committedText)}\", composition=\"{EscapeForLog(composition)}\", {DebugState}");
+            return true;
         }
 
         if (!active)
@@ -196,7 +232,13 @@ static class EngineIMEPatch
 
         DebugLog($"ApplyMessage begin: message={DescribeMessage(message)}, {DebugState}");
 
-        MarkKeyboardTypeDeltaForSuppression();
+        MarkStandardTypeDeltaAsImeHandled();
+
+        if (message.CommittedText.Length > 0)
+            AddPendingSuppressedTypeDelta(message.CommittedText);
+        else
+            MarkKeyboardTypeDeltaForSuppression();
+
         RestoreCompositionRangeIfTextEditorDeletedIt();
 
         if (message.Composition.Length == 0)
@@ -226,6 +268,20 @@ static class EngineIMEPatch
             return;
         }
 
+        var committedCurrentComposition = HasCompositionRange && message.CommittedText == _composition;
+
+        if (message.CommittedText.Length > 0)
+        {
+            CommitText(message.CommittedText, markKeyboardTypeDeltaForSuppression: false);
+            DebugLog($"ApplyMessage committed text before new composition: committed=\"{EscapeForLog(message.CommittedText)}\", message={DescribeMessage(message)}, {DebugState}");
+
+            if (committedCurrentComposition && message.Composition == message.CommittedText)
+            {
+                DebugLog($"ApplyMessage ignored stale composition after committed text: message={DescribeMessage(message)}, {DebugState}");
+                return;
+            }
+        }
+
         if (message.Composition == _composition && HasCompositionRange)
         {
             _compositionCaretOffset = ClampCompositionCaretOffset(message.CaretOffset, message.Composition.Length);
@@ -239,7 +295,7 @@ static class EngineIMEPatch
         if (IsLikelyImplicitCommitBeforeNewComposition(message))
         {
             var committedComposition = _composition;
-            CommitText(committedComposition);
+            CommitText(committedComposition, markKeyboardTypeDeltaForSuppression: false);
             AddPendingSuppressedTypeDelta(committedComposition);
             DebugLog($"ApplyMessage implicit composition commit before new composition: committed=\"{EscapeForLog(committedComposition)}\", message={DescribeMessage(message)}, {DebugState}");
         }
@@ -269,12 +325,13 @@ static class EngineIMEPatch
         CaretPosition = _compositionStart + _composition.Length;
     }
 
-    static void CommitText(string committedText)
+    static void CommitText(string committedText, bool markKeyboardTypeDeltaForSuppression = true)
     {
         if (committedText.Length == 0)
             return;
 
-        MarkKeyboardTypeDeltaForSuppression();
+        if (markKeyboardTypeDeltaForSuppression)
+            MarkKeyboardTypeDeltaForSuppression();
 
         if (HasCompositionRange && committedText == _composition)
         {
@@ -300,6 +357,8 @@ static class EngineIMEPatch
     }
 
     static void MarkKeyboardTypeDeltaForSuppression() => _suppressKeyboardTypeDeltaUpdates = Math.Max(_suppressKeyboardTypeDeltaUpdates, 8);
+
+    static void MarkStandardTypeDeltaAsImeHandled() => _suppressStandardTypeDeltaWhileImeActiveUpdates = Math.Max(_suppressStandardTypeDeltaWhileImeActiveUpdates, 8);
 
     static void AddPendingSuppressedTypeDelta(string value)
     {

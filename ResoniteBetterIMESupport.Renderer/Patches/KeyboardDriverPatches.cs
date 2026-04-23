@@ -16,6 +16,8 @@ static class KeyboardDriverStartPatch
 [HarmonyPatch]
 static class KeyboardDriverOnDestroyPatch
 {
+    static bool Prepare() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "OnDestroy") != null;
+
     static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "OnDestroy");
 
     static void Prefix(object __instance) => KeyboardDriverIMEPatch.Unsubscribe(__instance);
