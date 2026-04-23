@@ -1,5 +1,7 @@
 # ResoniteBetterIMESupport
 
+[![Thunderstore Badge](https://modding.resonite.net/assets/available-on-thunderstore.svg)](https://thunderstore.io/c/resonite/)
+
 A BepInEx plugin for Resonite that improves IME composition handling for input methods such as Japanese.
 
 This mod keeps IME composition text synchronized while editing UIX text, including:
