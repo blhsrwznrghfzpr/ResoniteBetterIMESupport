@@ -60,8 +60,22 @@ static class InputInterfaceUpdateKeyboardStatePatch
         if (!RenderiteCompositionContract.TryGet(keyboardState, out var active, out var composition, out var selectionStart, out var selectionLength))
             return;
 
-        if (EngineIMEPatch.ApplyKeyboardStateComposition(active, composition, selectionStart, selectionLength, filteredTypeDelta))
+        if (EngineIMEPatch.ApplyKeyboardStateComposition(active, composition, selectionStart, selectionLength, filteredTypeDelta, GetImeEditAction(keyboardState)))
             TypeDeltaSetter?.Invoke(__instance, new object[] { string.Empty });
+    }
+
+    static ImeEditAction GetImeEditAction(KeyboardState keyboardState)
+    {
+        if (keyboardState.heldKeys == null)
+            return ImeEditAction.None;
+
+        if (keyboardState.heldKeys.Contains(Key.Delete))
+            return ImeEditAction.Delete;
+
+        if (keyboardState.heldKeys.Contains(Key.Backspace))
+            return ImeEditAction.Backspace;
+
+        return ImeEditAction.None;
     }
 }
 

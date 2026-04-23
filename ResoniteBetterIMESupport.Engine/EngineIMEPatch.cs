@@ -144,7 +144,7 @@ static class EngineIMEPatch
         return true;
     }
 
-    public static bool ApplyKeyboardStateComposition(bool active, string composition, int selectionStart, int selectionLength, string committedText)
+    public static bool ApplyKeyboardStateComposition(bool active, string composition, int selectionStart, int selectionLength, string committedText, ImeEditAction editAction)
     {
         var text = _editingText;
         var consumedCommittedText = false;
@@ -187,7 +187,7 @@ static class EngineIMEPatch
         }
 
         var caretOffset = ClampCompositionCaretOffset(selectionStart + selectionLength, composition.Length);
-        var message = new ImePipeMessage(composition, string.Empty, caretOffset);
+        var message = new ImePipeMessage(composition, string.Empty, caretOffset, editAction);
         ApplyMessage(text, message);
         return consumedCommittedText;
     }
@@ -583,6 +583,9 @@ static class EngineIMEPatch
         if (!HasCompositionRange || message.CommittedText.Length > 0 || message.Composition.Length == 0 || _composition.Length <= 1)
             return false;
 
+        if (message.EditAction == ImeEditAction.Backspace || message.EditAction == ImeEditAction.Delete)
+            return false;
+
         if (message.CaretOffset > Math.Min(message.Composition.Length, 1))
             return false;
 
@@ -676,7 +679,7 @@ static class EngineIMEPatch
     }
 
     static string DescribeMessage(ImePipeMessage message) =>
-        $"{{composition=\"{EscapeForLog(message.Composition)}\", committed=\"{EscapeForLog(message.CommittedText)}\", caretOffset={message.CaretOffset}}}";
+        $"{{composition=\"{EscapeForLog(message.Composition)}\", committed=\"{EscapeForLog(message.CommittedText)}\", caretOffset={message.CaretOffset}, editAction={message.EditAction}}}";
 
     static string EscapeForLog(string value) =>
         value.Replace("\\", "\\\\").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");

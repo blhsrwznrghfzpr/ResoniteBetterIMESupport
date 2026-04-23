@@ -21,7 +21,7 @@ internal static class ImePipe
 
     public static string Decode(string value) => Encoding.UTF8.GetString(Convert.FromBase64String(value));
 
-    public static string EncodeMessage(string composition, string committedText, int caretOffset) => $"{Encode(composition)}\t{Encode(committedText)}\t{caretOffset}";
+    public static string EncodeMessage(string composition, string committedText, int caretOffset, ImeEditAction editAction = ImeEditAction.None) => $"{Encode(composition)}\t{Encode(committedText)}\t{caretOffset}\t{(int)editAction}";
 
     public static ImePipeMessage DecodeMessage(string line)
     {
@@ -30,7 +30,8 @@ internal static class ImePipe
         return new ImePipeMessage(
             parts.Length > 0 ? Decode(parts[0]) : string.Empty,
             parts.Length > 1 ? Decode(parts[1]) : string.Empty,
-            parts.Length > 2 && int.TryParse(parts[2], out var caretOffset) ? caretOffset : -1);
+            parts.Length > 2 && int.TryParse(parts[2], out var caretOffset) ? caretOffset : -1,
+            parts.Length > 3 && int.TryParse(parts[3], out var editAction) && Enum.IsDefined(typeof(ImeEditAction), editAction) ? (ImeEditAction)editAction : ImeEditAction.None);
     }
 
     public static bool TryDecodeMessage(string line, out ImePipeMessage message)
@@ -140,13 +141,21 @@ internal static class ImePipe
     }
 }
 
+internal enum ImeEditAction
+{
+    None = 0,
+    Backspace = 1,
+    Delete = 2
+}
+
 internal readonly struct ImePipeMessage
 {
-    public ImePipeMessage(string composition, string committedText, int caretOffset)
+    public ImePipeMessage(string composition, string committedText, int caretOffset, ImeEditAction editAction = ImeEditAction.None)
     {
         Composition = composition;
         CommittedText = committedText;
         CaretOffset = caretOffset;
+        EditAction = editAction;
     }
 
     public string Composition { get; }
@@ -154,6 +163,8 @@ internal readonly struct ImePipeMessage
     public string CommittedText { get; }
 
     public int CaretOffset { get; }
+
+    public ImeEditAction EditAction { get; }
 }
 
 internal sealed class ImePipeClient : IDisposable
@@ -163,7 +174,7 @@ internal sealed class ImePipeClient : IDisposable
     StreamWriter? _writer;
     DateTime _nextConnectAttemptUtc;
 
-    public bool SendComposition(string composition, string committedText, int caretOffset)
+    public bool SendComposition(string composition, string committedText, int caretOffset, ImeEditAction editAction = ImeEditAction.None)
     {
         lock (_lock)
         {
@@ -172,7 +183,7 @@ internal sealed class ImePipeClient : IDisposable
 
             try
             {
-                _writer!.WriteLine(ImePipe.EncodeMessage(composition, committedText, caretOffset));
+                _writer!.WriteLine(ImePipe.EncodeMessage(composition, committedText, caretOffset, editAction));
                 return true;
             }
             catch

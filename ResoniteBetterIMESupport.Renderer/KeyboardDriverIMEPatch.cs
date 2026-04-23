@@ -160,6 +160,7 @@ static class KeyboardDriverIMEPatch
         var committedText = typeDelta?.ToString() ?? string.Empty;
         var backspaceKeyActive = IsCompositionBackspaceKeyActive();
         var deleteKeyActive = IsCompositionDeleteKeyActive();
+        var editAction = GetImeEditAction(backspaceKeyActive, deleteKeyActive);
         DebugLog($"OnIMECompositionChange begin: composition=\"{EscapeForLog(compositionString)}\", committed=\"{EscapeForLog(committedText)}\", previousComposition=\"{EscapeForLog(state.ImeComposition)}\", caretOffset={state.CompositionCaretOffset}, typeDeltaLength={typeDelta?.Length ?? -1}, backspaceKeyActive={backspaceKeyActive}, deleteKeyActive={deleteKeyActive}");
 
         if (compositionString.Length == 0 && state.IgnoreNextEmptyCompositionCommit)
@@ -208,7 +209,7 @@ static class KeyboardDriverIMEPatch
         if (compositionString.Length > 0)
             state.CompositionCaretOffset = GetNextCompositionCaretOffset(state.ImeComposition, compositionString, state.CompositionCaretOffset, backspaceKeyActive);
 
-        if (PipeClient.SendComposition(compositionString, committedText, state.CompositionCaretOffset))
+        if (PipeClient.SendComposition(compositionString, committedText, state.CompositionCaretOffset, editAction))
         {
             DebugLog($"OnIMECompositionChange sent to pipe: composition=\"{EscapeForLog(compositionString)}\", committed=\"{EscapeForLog(committedText)}\", caretOffset={state.CompositionCaretOffset}");
             ClearPendingTypeDelta(driver);
@@ -289,6 +290,17 @@ static class KeyboardDriverIMEPatch
 
         if (composition.Length == 0)
             state.CompositionCaretOffset = -1;
+    }
+
+    static ImeEditAction GetImeEditAction(bool backspaceKeyActive, bool deleteKeyActive)
+    {
+        if (deleteKeyActive)
+            return ImeEditAction.Delete;
+
+        if (backspaceKeyActive)
+            return ImeEditAction.Backspace;
+
+        return ImeEditAction.None;
     }
 
     static bool IsCompositionBackspaceKeyActive()
@@ -567,7 +579,7 @@ static class KeyboardDriverIMEPatch
 
         state.CompositionCaretOffset = nextOffset;
         DebugLog($"MoveCompositionCaret send: key={key}, composition=\"{EscapeForLog(state.ImeComposition)}\", previousOffset={previousOffset}, nextOffset={nextOffset}");
-        if (!PipeClient.SendComposition(state.ImeComposition, string.Empty, state.CompositionCaretOffset))
+        if (!PipeClient.SendComposition(state.ImeComposition, string.Empty, state.CompositionCaretOffset, ImeEditAction.None))
             DebugLog($"MoveCompositionCaret pipe send failed: {ImePipe.PipeDebugInfo}");
     }
 
