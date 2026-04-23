@@ -11,7 +11,7 @@ public sealed class RendererPlugin : BaseUnityPlugin
 {
     public const string PluginGuid = "dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Renderer";
     public const string PluginName = "ResoniteBetterIMESupport.Renderer";
-    public const string PluginVersion = "3.0.1";
+    public const string PluginVersion = "3.0.2";
 
     internal static new ManualLogSource Logger = null!;
     static ConfigEntry<bool> _enableDebugLogging = null!;
