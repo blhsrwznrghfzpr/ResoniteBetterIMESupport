@@ -45,8 +45,17 @@ static class EngineIMEPatch
         _server = null;
     }
 
-    public static void SetEditingText(IText text)
+    public static void SetEditingText(IText? text)
     {
+        if (text == null)
+        {
+            DebugLog("SetEditingText ignored null target.");
+            ClearEditingText();
+            return;
+        }
+
+        var textValue = text.Text ?? string.Empty;
+        DebugLog($"SetEditingText: textLength={textValue.Length}, caret={text.CaretPosition}, selectionStart={text.SelectionStart}");
         _editingText = text;
         _stringChanged = false;
         _isTypingUnsettled = false;
@@ -60,6 +69,7 @@ static class EngineIMEPatch
 
     public static void ClearEditingText()
     {
+        DebugLog($"ClearEditingText before: {DebugState}");
         _editingText = null;
         _stringChanged = false;
         _isTypingUnsettled = false;
@@ -234,6 +244,17 @@ static class EngineIMEPatch
 
         MarkStandardTypeDeltaAsImeHandled();
 
+        if (message.Composition.Length == 0
+            && HasCompositionRange
+            && IsLikelyFocusLossAccumulatedCommit(message.CommittedText, _composition))
+        {
+            AddPendingSuppressedTypeDelta(message.CommittedText);
+            MarkKeyboardTypeDeltaForSuppression();
+            KeepCompositionTextAndClearState();
+            DebugLog($"ApplyMessage canceled accumulated focus-loss commit: message={DescribeMessage(message)}, {DebugState}");
+            return;
+        }
+
         if (message.CommittedText.Length > 0)
             AddPendingSuppressedTypeDelta(message.CommittedText);
         else
@@ -246,6 +267,12 @@ static class EngineIMEPatch
             if (HasCompositionRange && message.CommittedText == _composition)
             {
                 CaretPosition = _compositionStart + _composition.Length;
+            }
+            else if (HasCompositionRange && message.CommittedText.Length == 0 && message.CaretOffset < 0)
+            {
+                KeepCompositionTextAndClearState();
+                DebugLog($"ApplyMessage kept composition text on focus-loss cancel: message={DescribeMessage(message)}, {DebugState}");
+                return;
             }
             else
             {
@@ -354,6 +381,19 @@ static class EngineIMEPatch
         _compositionStart = -1;
         _compositionCaretOffset = -1;
         DebugLog($"CommitText: committed=\"{EscapeForLog(committedText)}\", {DebugState}");
+    }
+
+    static void KeepCompositionTextAndClearState()
+    {
+        if (HasCompositionRange)
+            CaretPosition = _compositionStart + _composition.Length;
+
+        HasSelection = false;
+        _isTypingUnsettled = false;
+        _composition = string.Empty;
+        _compositionStart = -1;
+        _compositionCaretOffset = -1;
+        _stringChanged = true;
     }
 
     static void MarkKeyboardTypeDeltaForSuppression() => _suppressKeyboardTypeDeltaUpdates = Math.Max(_suppressKeyboardTypeDeltaUpdates, 8);
@@ -567,6 +607,41 @@ static class EngineIMEPatch
         }
 
         return false;
+    }
+
+    static bool IsLikelyFocusLossAccumulatedCommit(string committedText, string previousComposition)
+    {
+        if (committedText.Length == 0 || previousComposition.Length == 0)
+            return false;
+
+        if (committedText.Length <= Math.Max(previousComposition.Length * 2, previousComposition.Length + 8))
+            return false;
+
+        var repeats = CountOccurrences(committedText, previousComposition);
+        if (repeats >= 2)
+            return true;
+
+        var prefixLength = Math.Min(previousComposition.Length, committedText.Length);
+        return string.CompareOrdinal(committedText, 0, previousComposition, 0, prefixLength) == 0
+            && committedText.Length > previousComposition.Length * 3;
+    }
+
+    static int CountOccurrences(string value, string pattern)
+    {
+        var count = 0;
+        var index = 0;
+
+        while (index < value.Length)
+        {
+            index = value.IndexOf(pattern, index, StringComparison.Ordinal);
+            if (index < 0)
+                return count;
+
+            count++;
+            index += pattern.Length;
+        }
+
+        return count;
     }
 
     static bool IsFullwidthAscii(char ch) => ch >= '\uFF01' && ch <= '\uFF5E';

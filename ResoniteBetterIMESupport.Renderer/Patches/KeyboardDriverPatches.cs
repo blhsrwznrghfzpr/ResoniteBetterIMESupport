@@ -14,16 +14,6 @@ static class KeyboardDriverStartPatch
 }
 
 [HarmonyPatch]
-static class KeyboardDriverOnDestroyPatch
-{
-    static bool Prepare() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "OnDestroy") != null;
-
-    static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "OnDestroy");
-
-    static void Prefix(object __instance) => KeyboardDriverIMEPatch.Unsubscribe(__instance);
-}
-
-[HarmonyPatch]
 static class KeyboardDriverUpdateStatePatch
 {
     static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "UpdateState");
@@ -54,9 +44,6 @@ static class KeyboardDriverHandleOutputStatePatch
 {
     static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "HandleOutputState");
 
-    static void Postfix(object __instance, OutputState output)
-    {
-        if (!output.keyboardInputActive)
-            KeyboardDriverIMEPatch.ClearComposition(__instance);
-    }
+    static void Postfix(object __instance, OutputState output) =>
+        KeyboardDriverIMEPatch.HandleKeyboardInputActive(__instance, output.keyboardInputActive);
 }

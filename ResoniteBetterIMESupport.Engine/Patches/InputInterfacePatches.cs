@@ -9,13 +9,33 @@ namespace ResoniteBetterIMESupport.Engine.Patches;
 [HarmonyPatch(typeof(InputInterface), nameof(InputInterface.ShowKeyboard))]
 static class InputInterfaceShowKeyboardPatch
 {
-    static void Postfix(IText targetText) => EngineIMEPatch.SetEditingText(targetText);
+    static void Postfix(IText? targetText)
+    {
+        try
+        {
+            EngineIMEPatch.SetEditingText(targetText);
+        }
+        catch (Exception ex)
+        {
+            EnginePlugin.Log.LogError($"IME ShowKeyboard postfix failed. Leaving Resonite editing flow untouched.\n{ex}");
+        }
+    }
 }
 
 [HarmonyPatch(typeof(InputInterface), nameof(InputInterface.HideKeyboard))]
 static class InputInterfaceHideKeyboardPatch
 {
-    static void Postfix() => EngineIMEPatch.ClearEditingText();
+    static void Postfix()
+    {
+        try
+        {
+            EngineIMEPatch.ClearEditingText();
+        }
+        catch (Exception ex)
+        {
+            EnginePlugin.Log.LogError($"IME HideKeyboard postfix failed.\n{ex}");
+        }
+    }
 }
 
 [HarmonyPatch]

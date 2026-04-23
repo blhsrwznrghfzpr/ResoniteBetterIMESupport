@@ -104,6 +104,41 @@ static class KeyboardDriverIMEPatch
         state.PreviousHeldIMEEditingKeys.Clear();
     }
 
+    public static void HandleKeyboardInputActive(object driver, bool keyboardInputActive)
+    {
+        var state = GetState(driver);
+        var wasKeyboardInputActive = state.KeyboardInputActive;
+        state.KeyboardInputActive = keyboardInputActive;
+
+        if (keyboardInputActive)
+        {
+            state.IgnoreNextEmptyCompositionCommit = false;
+            return;
+        }
+
+        if (wasKeyboardInputActive)
+            CancelCompositionForInactiveKeyboard(driver);
+    }
+
+    public static void CancelCompositionForInactiveKeyboard(object driver)
+    {
+        var state = GetState(driver);
+
+        if (state.ImeComposition.Length == 0)
+        {
+            ClearComposition(driver);
+            return;
+        }
+
+        DebugLog($"CancelCompositionForInactiveKeyboard: composition=\"{EscapeForLog(state.ImeComposition)}\", caretOffset={state.CompositionCaretOffset}");
+        if (!RenderiteCompositionContract.IsSupported && !PipeClient.SendComposition(string.Empty, string.Empty, -1))
+            DebugLog($"CancelCompositionForInactiveKeyboard pipe send failed: {ImePipe.PipeDebugInfo}");
+
+        ClearPendingTypeDelta(driver);
+        ClearComposition(driver);
+        state.IgnoreNextEmptyCompositionCommit = true;
+    }
+
     public static bool HasComposition(object driver) => !string.IsNullOrEmpty(GetState(driver).ImeComposition);
 
     static void OnAfterInputUpdate()
@@ -126,6 +161,31 @@ static class KeyboardDriverIMEPatch
         var backspaceKeyActive = IsCompositionBackspaceKeyActive();
         var deleteKeyActive = IsCompositionDeleteKeyActive();
         DebugLog($"OnIMECompositionChange begin: composition=\"{EscapeForLog(compositionString)}\", committed=\"{EscapeForLog(committedText)}\", previousComposition=\"{EscapeForLog(state.ImeComposition)}\", caretOffset={state.CompositionCaretOffset}, typeDeltaLength={typeDelta?.Length ?? -1}, backspaceKeyActive={backspaceKeyActive}, deleteKeyActive={deleteKeyActive}");
+
+        if (compositionString.Length == 0 && state.IgnoreNextEmptyCompositionCommit)
+        {
+            DebugLog($"OnIMECompositionChange ignoring empty composition commit after keyboard focus loss: committed=\"{EscapeForLog(committedText)}\"");
+            state.IgnoreNextEmptyCompositionCommit = false;
+            ClearPendingTypeDelta(driver);
+            return;
+        }
+
+        if (compositionString.Length > 0)
+            state.IgnoreNextEmptyCompositionCommit = false;
+
+        if (compositionString.Length == 0
+            && state.ImeComposition.Length > 0
+            && IsLikelyFocusLossAccumulatedCommit(committedText, state.ImeComposition))
+        {
+            DebugLog($"OnIMECompositionChange treating accumulated focus-loss TypeDelta as cancel: committedLength={committedText.Length}, previousComposition=\"{EscapeForLog(state.ImeComposition)}\"");
+            if (!RenderiteCompositionContract.IsSupported && !PipeClient.SendComposition(string.Empty, string.Empty, -1))
+                DebugLog($"OnIMECompositionChange focus-loss cancel pipe send failed: {ImePipe.PipeDebugInfo}");
+
+            ClearPendingTypeDelta(driver);
+            ClearComposition(driver);
+            state.IgnoreNextEmptyCompositionCommit = true;
+            return;
+        }
 
         if ((backspaceKeyActive || deleteKeyActive) && state.ImeComposition.Length > 1)
             state.SuppressEmptyCompositionEndUntilTimestamp = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 10;
@@ -263,6 +323,41 @@ static class KeyboardDriverIMEPatch
 
         state.SuppressEmptyCompositionEndUntilTimestamp = 0;
         return false;
+    }
+
+    static bool IsLikelyFocusLossAccumulatedCommit(string committedText, string previousComposition)
+    {
+        if (committedText.Length == 0 || previousComposition.Length == 0)
+            return false;
+
+        if (committedText.Length <= Math.Max(previousComposition.Length * 2, previousComposition.Length + 8))
+            return false;
+
+        var repeats = CountOccurrences(committedText, previousComposition);
+        if (repeats >= 2)
+            return true;
+
+        var prefixLength = Math.Min(previousComposition.Length, committedText.Length);
+        return string.CompareOrdinal(committedText, 0, previousComposition, 0, prefixLength) == 0
+            && committedText.Length > previousComposition.Length * 3;
+    }
+
+    static int CountOccurrences(string value, string pattern)
+    {
+        var count = 0;
+        var index = 0;
+
+        while (index < value.Length)
+        {
+            index = value.IndexOf(pattern, index, StringComparison.Ordinal);
+            if (index < 0)
+                return count;
+
+            count++;
+            index += pattern.Length;
+        }
+
+        return count;
     }
 
     static int GetNextCompositionCaretOffset(string previousComposition, string nextComposition, int previousCaretOffset, bool backspaceKeyActive)
@@ -495,6 +590,8 @@ static class KeyboardDriverIMEPatch
         public int CompositionCaretOffset = -1;
         public int LastUpdateTypeDeltaLength = -1;
         public long SuppressEmptyCompositionEndUntilTimestamp;
+        public bool KeyboardInputActive;
+        public bool IgnoreNextEmptyCompositionCommit;
         public Action<IMECompositionString>? CompositionHandler;
         public readonly HashSet<RenderiteKey> PreviousHeldIMEEditingKeys = new();
     }
