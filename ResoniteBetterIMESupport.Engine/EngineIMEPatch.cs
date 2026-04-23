@@ -550,21 +550,7 @@ static class EngineIMEPatch
         if (_composition.StartsWith(message.Composition, StringComparison.Ordinal) || message.Composition.StartsWith(_composition, StringComparison.Ordinal))
             return false;
 
-        return IsLikelyCompositionStarter(message.Composition);
-    }
-
-    static bool IsLikelyCompositionStarter(string value)
-    {
-        foreach (var ch in value)
-        {
-            if (IsCjkUnifiedIdeograph(ch))
-                continue;
-
-            if (char.IsLetterOrDigit(ch) || IsFullwidthAscii(ch) || IsJapaneseKana(ch) || IsJapanesePunctuation(ch) || IsHangul(ch) || IsBopomofo(ch))
-                return true;
-        }
-
-        return false;
+        return true;
     }
 
     static bool IsLikelyFocusLossAccumulatedCommit(string committedText, string previousComposition)
@@ -601,37 +587,6 @@ static class EngineIMEPatch
 
         return count;
     }
-
-    static bool IsFullwidthAscii(char ch) => ch >= '\uFF01' && ch <= '\uFF5E';
-
-    static bool IsJapaneseKana(char ch) =>
-        (ch >= '\u3040' && ch <= '\u30FF')
-        || (ch >= '\u31F0' && ch <= '\u31FF')
-        || (ch >= '\uFF66' && ch <= '\uFF9D');
-
-    static bool IsJapanesePunctuation(char ch) =>
-        ch == '\u3001'
-        || ch == '\u3002'
-        || ch == '\uFF0C'
-        || ch == '\uFF0E'
-        || ch == '\uFF61'
-        || ch == '\uFF64';
-
-    static bool IsHangul(char ch) =>
-        (ch >= '\u1100' && ch <= '\u11FF')
-        || (ch >= '\u3130' && ch <= '\u318F')
-        || (ch >= '\uA960' && ch <= '\uA97F')
-        || (ch >= '\uAC00' && ch <= '\uD7AF')
-        || (ch >= '\uD7B0' && ch <= '\uD7FF');
-
-    static bool IsBopomofo(char ch) =>
-        (ch >= '\u3100' && ch <= '\u312F')
-        || (ch >= '\u31A0' && ch <= '\u31BF');
-
-    static bool IsCjkUnifiedIdeograph(char ch) =>
-        (ch >= '\u3400' && ch <= '\u4DBF')
-        || (ch >= '\u4E00' && ch <= '\u9FFF')
-        || (ch >= '\uF900' && ch <= '\uFAFF');
 
     static string BuildDebugState()
     {
