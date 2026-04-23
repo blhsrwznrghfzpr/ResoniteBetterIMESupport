@@ -28,16 +28,19 @@ static class InputInterfaceUpdateKeyboardStatePatch
 
     static void Postfix(InputInterface __instance, KeyboardState keyboardState)
     {
-        if (!RenderiteCompositionContract.TryGet(keyboardState, out var active, out var composition, out var selectionStart, out var selectionLength))
-        {
-            if (EngineIMEPatch.ShouldSuppressKeyboardTypeDelta(keyboardState.typeDelta ?? string.Empty))
-                TypeDeltaSetter?.Invoke(__instance, new object[] { string.Empty });
+        var typeDelta = keyboardState.typeDelta ?? string.Empty;
+        var filteredTypeDelta = typeDelta;
 
-            return;
+        if (EngineIMEPatch.TryFilterKeyboardTypeDelta(typeDelta, out var replacementTypeDelta))
+        {
+            filteredTypeDelta = replacementTypeDelta;
+            TypeDeltaSetter?.Invoke(__instance, new object[] { replacementTypeDelta });
         }
 
-        var committedText = keyboardState.typeDelta ?? string.Empty;
-        if (EngineIMEPatch.ApplyKeyboardStateComposition(active, composition, selectionStart, selectionLength, committedText))
+        if (!RenderiteCompositionContract.TryGet(keyboardState, out var active, out var composition, out var selectionStart, out var selectionLength))
+            return;
+
+        if (EngineIMEPatch.ApplyKeyboardStateComposition(active, composition, selectionStart, selectionLength, filteredTypeDelta))
             TypeDeltaSetter?.Invoke(__instance, new object[] { string.Empty });
     }
 }

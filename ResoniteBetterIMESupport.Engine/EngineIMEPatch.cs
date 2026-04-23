@@ -75,24 +75,33 @@ static class EngineIMEPatch
         return true;
     }
 
-    public static bool ShouldSuppressKeyboardTypeDelta(string typeDelta)
+    public static bool TryFilterKeyboardTypeDelta(string typeDelta, out string filteredTypeDelta)
     {
+        filteredTypeDelta = typeDelta;
+
         if (typeDelta.Length == 0)
             return false;
 
-        if (ConsumePendingSuppressedTypeDelta(typeDelta))
+        if (TryConsumePendingSuppressedTypeDelta(typeDelta, out var pendingSuppressedTypeDelta))
         {
-            DebugLog($"Suppressing pending IME TypeDelta: typeDelta=\"{EscapeForLog(typeDelta)}\", {DebugState}");
+            filteredTypeDelta = typeDelta.Remove(pendingSuppressedTypeDelta.Start, pendingSuppressedTypeDelta.Length);
+            DebugLog($"Suppressing pending IME TypeDelta: typeDelta=\"{EscapeForLog(typeDelta)}\", filtered=\"{EscapeForLog(filteredTypeDelta)}\", {DebugState}");
             return true;
         }
+
+        if (ContainsTextEditorLineBreak(typeDelta))
+            return false;
 
         if (_suppressKeyboardTypeDeltaUpdates <= 0)
             return false;
 
         _suppressKeyboardTypeDeltaUpdates--;
         DebugLog($"Suppressing keyboard TypeDelta after IME pipe handling: typeDelta=\"{EscapeForLog(typeDelta)}\", {DebugState}");
+        filteredTypeDelta = string.Empty;
         return true;
     }
+
+    static bool ContainsTextEditorLineBreak(string typeDelta) => typeDelta.IndexOfAny(new[] { '\n', '\r' }) >= 0;
 
     public static bool ApplyKeyboardStateComposition(bool active, string composition, int selectionStart, int selectionLength, string committedText)
     {
@@ -300,21 +309,38 @@ static class EngineIMEPatch
             PendingSuppressedTypeDeltas.Dequeue();
     }
 
-    static bool ConsumePendingSuppressedTypeDelta(string typeDelta)
+    static bool TryConsumePendingSuppressedTypeDelta(string typeDelta, out PendingSuppressedTypeDelta suppressedTypeDelta)
     {
+        suppressedTypeDelta = default;
         var count = PendingSuppressedTypeDeltas.Count;
 
         for (var i = 0; i < count; i++)
         {
             var pending = PendingSuppressedTypeDeltas.Dequeue();
 
-            if (typeDelta == pending)
+            var index = typeDelta.IndexOf(pending, StringComparison.Ordinal);
+            if (index >= 0)
+            {
+                suppressedTypeDelta = new PendingSuppressedTypeDelta(index, pending.Length);
                 return true;
+            }
 
             PendingSuppressedTypeDeltas.Enqueue(pending);
         }
 
         return false;
+    }
+
+    readonly struct PendingSuppressedTypeDelta
+    {
+        public readonly int Start;
+        public readonly int Length;
+
+        public PendingSuppressedTypeDelta(int start, int length)
+        {
+            Start = start;
+            Length = length;
+        }
     }
 
     static bool IsCompositionVisualSelectionActive =>
