@@ -191,7 +191,7 @@ static class KeyboardDriverIMEPatch
         if ((backspaceKeyActive || deleteKeyActive) && state.ImeComposition.Length > 1)
             state.SuppressEmptyCompositionEndUntilTimestamp = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 10;
 
-        if (compositionString.Length == 0 && state.ImeComposition.Length > 0 && IsSuppressingCompositionEndAfterDeletion(state)
+        if (compositionString.Length == 0 && state.ImeComposition.Length > 1 && IsSuppressingCompositionEndAfterDeletion(state)
             && (committedText.Length == 0 || committedText == state.ImeComposition))
         {
             DebugLog("OnIMECompositionChange suppressing transient empty composition after deletion");
