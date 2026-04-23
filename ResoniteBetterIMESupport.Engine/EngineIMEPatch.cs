@@ -25,6 +25,8 @@ static class EngineIMEPatch
 
     public static bool IsTypingUnsettled => HasActiveComposition;
 
+    public static bool ShouldSuppressScreenModeToggle => HasActiveComposition;
+
     public static bool ShouldSuppressTextEditorKey(Key key) =>
         HasActiveComposition && (key == Key.Backspace || key == Key.Delete);
 

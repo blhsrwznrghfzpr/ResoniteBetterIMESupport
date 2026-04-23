@@ -72,6 +72,7 @@ If copy-to-profile fails, check whether Resonite is still running and locking th
 - Do not suppress TextEditor control `TypeDelta` values such as `\b`, `\n`, or `\r` in the generic IME duplicate filter. Backspace/Delete protection belongs to active composition range checks, while Shift+Enter/newline handling must remain available as normal editor input.
 - When a `TypeDelta` exactly matches the current visual composition, treat it as a real commit signal rather than generic duplicate text. Some IMEs/Unity frames can still report the same composition text immediately after Enter, so ignore stale composition updates after consuming the commit.
 - Treat surrogate pairs carefully when moving caret positions; avoid splitting surrogate code units.
+- Resonite's vanilla F8 VR-Screen toggle lives in `FrooxEngine.ScreenModeController.OnCommonUpdate`, which directly checks `InputInterface.GetKeyDown(Key.F8)` and flips `InputInterface.VR_Active`. Suppress it only while an active IME composition range exists so normal F8 behavior returns after commit/cancel.
 
 ## Testing Focus
 
