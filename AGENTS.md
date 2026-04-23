@@ -1,0 +1,74 @@
+# Repository Guidelines
+
+## Project Shape
+
+ResoniteBetterIMESupport is a two-process Resonite/BepInEx mod for IME composition support. Keep the split explicit:
+
+- `ResoniteBetterIMESupport.Renderer` targets `net472` and runs inside the Unity renderer process. It hooks Unity InputSystem/Renderite keyboard behavior, tracks IME composition state, and sends composition text, committed text, and caret offsets to the engine side.
+- `ResoniteBetterIMESupport.Engine` targets `net10.0` and runs inside the Resonite engine process. It patches FrooxEngine text editing/rendering, applies composition ranges to the active `IText`, suppresses conflicting editor keys while composition is unsettled, and draws the composition caret.
+- `ResoniteBetterIMESupport.Shared` is linked into both plugins and owns shared protocol details such as named-pipe messages and IME editing key sets.
+
+Both plugin sides are required for the feature to work. Avoid changes that make either side appear optional unless the install/package layout is intentionally redesigned.
+
+## Maintaining This File
+
+When work reveals reusable project knowledge, pitfalls, validation steps, local paths, or coding conventions that would help future Codex sessions, update this `AGENTS.md` proactively as part of the same change. Keep additions concise and specific to this repository.
+
+## Build And Package Commands
+
+Use PowerShell on Windows. The normal validation command is:
+
+```powershell
+dotnet build ResoniteBetterIMESupport.sln
+```
+
+To copy a local build into the default Gale/BepisLoader profile:
+
+```powershell
+dotnet build ResoniteBetterIMESupport.sln -p:CopyToPlugins=true
+```
+
+Useful path overrides:
+
+```powershell
+dotnet build ResoniteBetterIMESupport.sln -p:GamePath="C:\Path\To\Game" -p:BepisLoaderProfilePath="C:\Path\To\Profile"
+dotnet build ResoniteBetterIMESupport.sln -p:ResonitePath="C:\Path\To\Game"
+```
+
+Release/package metadata is duplicated in `Directory.Build.props`, plugin constants, and `thunderstore.toml`; keep versions synchronized when changing releases. Thunderstore packaging expects Release binaries and uses `build.cake`/`tcli` with `thunderstore.toml`.
+
+## Runtime Paths
+
+Default development assumptions live in `Directory.Build.props`:
+
+- `GamePath`: `%LOCALAPPDATA%\RESO Launcher\profiles\01bepis\Game`, with common Steam paths as fallback.
+- `BepisLoaderProfilePath`: `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default`.
+
+Installed DLL layout must remain:
+
+- Engine: `BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Engine.dll`
+- Renderer: `Renderer/BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Renderer.dll`
+
+If copy-to-profile fails, check whether Resonite is still running and locking the engine DLL.
+
+## Implementation Notes
+
+- When changing Harmony patches or behavior that depends on Resonite/FrooxEngine internals, inspect `../reso-decompile/sources` as needed. Use it to confirm target method names, state-machine shapes, private fields/properties, and text-editing behavior before changing transpilers or reflection code.
+- Preserve the named-pipe protocol in `Shared/ImePipe.cs`: base64 fields separated by tabs, carrying composition, committed text, and caret offset. If the message format changes, update both sides together and consider a pipe-name version bump.
+- Renderer-side pipe identity intentionally derives from the parent process when running in a renderer process so the engine and renderer share a session-specific pipe. Be cautious changing process-name or parent-process logic.
+- Keep IME debug logging behind the `Debug/EnableDebugLogging` config entry on both sides. Verbose logs should go through `LogDebugIme`.
+- Harmony patches depend on private Resonite/FrooxEngine/Renderite implementation details. Prefer small, targeted patches with clear failure messages when reflected members are missing.
+- Be careful with composition deletion/caret behavior for Japanese IME: Backspace/Delete/Home/End/Left/Right during unconfirmed composition should not let Resonite delete the whole visual composition range.
+- Treat surrogate pairs carefully when moving caret positions; avoid splitting surrogate code units.
+
+## Testing Focus
+
+After behavioral changes, test at least these flows in Resonite when possible:
+
+- start composition, update candidates, and commit text normally
+- move the caret inside unconfirmed composition with Left/Right/Home/End
+- edit unconfirmed composition with Backspace/Delete without deleting the whole composition range
+- commit after editing composition text
+- confirm both logs contain the load messages for Engine and Renderer plugins
+
+If only build validation was possible, say so explicitly in the final response.
