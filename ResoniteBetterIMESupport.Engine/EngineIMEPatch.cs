@@ -2,6 +2,7 @@ using Elements.Assets;
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
+using InterprocessLib;
 using Renderite.Shared;
 using ResoniteBetterIMESupport.Shared;
 using System.Collections.Generic;
@@ -11,7 +12,7 @@ namespace ResoniteBetterIMESupport.Engine;
 static class EngineIMEPatch
 {
     static IText? _editingText;
-    static ImePipeServer? _server;
+    static Messenger? _messenger;
     static bool _stringChanged;
     static bool _isTypingUnsettled;
     static string _composition = string.Empty;
@@ -37,14 +38,15 @@ static class EngineIMEPatch
     public static void Start()
     {
         Stop();
-        DebugLog($"Starting IME pipe server: {ImePipe.PipeDebugInfo}");
-        _server = new ImePipeServer(OnMessage);
+        DebugLog($"Starting IME InterprocessLib receiver: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\"");
+        _messenger = new Messenger(ImeInterprocessChannel.OwnerId);
+        _messenger.ReceiveObject<ImeInterprocessMessage>(ImeInterprocessChannel.MessageId, OnMessage);
     }
 
     public static void Stop()
     {
-        _server?.Dispose();
-        _server = null;
+        _messenger?.Dispose();
+        _messenger = null;
     }
 
     public static void SetEditingText(IText? text)
@@ -165,7 +167,7 @@ static class EngineIMEPatch
         return true;
     }
 
-    static void OnMessage(ImePipeMessage message)
+    static void OnMessage(ImeInterprocessMessage message)
     {
         var text = _editingText;
 
@@ -186,7 +188,7 @@ static class EngineIMEPatch
         text.RunSynchronously(() => ApplyMessage(text, message), true);
     }
 
-    static void ApplyMessage(IText targetText, ImePipeMessage message)
+    static void ApplyMessage(IText targetText, ImeInterprocessMessage message)
     {
         if (!ReferenceEquals(_editingText, targetText))
         {
@@ -532,7 +534,7 @@ static class EngineIMEPatch
         return Math.Max(0, Math.Min(caretOffset, compositionLength));
     }
 
-    static bool IsLikelyImplicitCommitBeforeNewComposition(ImePipeMessage message)
+    static bool IsLikelyImplicitCommitBeforeNewComposition(ImeInterprocessMessage message)
     {
         if (!HasCompositionRange || message.CommittedText.Length > 0 || message.Composition.Length == 0)
             return false;
@@ -598,7 +600,7 @@ static class EngineIMEPatch
         return $"state={{textLength={_editingText.Text.Length}, caret={CaretPosition}, selectionStart={SelectionStart}, selectionLength={SelectionLength}, compositionStart={_compositionStart}, compositionLength={_composition.Length}, compositionCaretOffset={_compositionCaretOffset}, typingUnsettled={_isTypingUnsettled}, hasCompositionRange={HasCompositionRange}, visualSelectionActive={IsCompositionVisualSelectionActive}, text=\"{EscapeForLog(_editingText.Text)}\", composition=\"{EscapeForLog(_composition)}\"}}";
     }
 
-    static string DescribeMessage(ImePipeMessage message) =>
+    static string DescribeMessage(ImeInterprocessMessage message) =>
         $"{{composition=\"{EscapeForLog(message.Composition)}\", committed=\"{EscapeForLog(message.CommittedText)}\", caretOffset={message.CaretOffset}, editAction={message.EditAction}}}";
 
     static string EscapeForLog(string value) =>

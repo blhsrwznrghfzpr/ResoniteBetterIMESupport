@@ -22,9 +22,12 @@ public sealed class RendererPlugin : BaseUnityPlugin
         _enableDebugLogging = Config.Bind("Debug", "EnableDebugLogging", false, "Enable verbose IME debug logging.");
 
         LegacyPluginWarning.WarnIfLoaded(Logger);
+        KeyboardDriverIMEPatch.InitializeMessaging();
         new Harmony(PluginGuid).PatchAll(Assembly.GetExecutingAssembly());
         Logger.LogInfo("ResoniteBetterIMESupport.Renderer loaded.");
     }
+
+    void OnDestroy() => KeyboardDriverIMEPatch.DisposeMessaging();
 
     internal static void LogDebugIme(string message)
     {

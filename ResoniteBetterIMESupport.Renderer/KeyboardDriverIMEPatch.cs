@@ -1,4 +1,5 @@
 using HarmonyLib;
+using InterprocessLib;
 using Renderite.Shared;
 using ResoniteBetterIMESupport.Shared;
 using System.Collections.Generic;
@@ -18,11 +19,11 @@ static class KeyboardDriverIMEPatch
 {
     static readonly ConditionalWeakTable<object, DriverState> States = new();
     static readonly HashSet<object> ActiveDrivers = new();
-    static readonly ImePipeClient PipeClient = new();
 
     static FieldInfo? _typeDeltaField;
     static bool _inputUpdateHooked;
-    static bool _pipeIdentityLogged;
+    static bool _messengerIdentityLogged;
+    static Messenger? _messenger;
 
     public static Type KeyboardDriverType =>
         AccessTools.TypeByName("KeyboardDriver") ?? throw new InvalidOperationException("KeyboardDriver type was not found.");
@@ -33,6 +34,21 @@ static class KeyboardDriverIMEPatch
     public static DriverState GetState(object driver) => States.GetOrCreateValue(driver);
 
     public static StringBuilder? GetTypeDelta(object driver) => (StringBuilder?)TypeDeltaField.GetValue(driver);
+
+    public static void InitializeMessaging()
+    {
+        if (_messenger != null)
+            return;
+
+        _messenger = new Messenger(ImeInterprocessChannel.OwnerId);
+        LogMessengerIdentityOnce();
+    }
+
+    public static void DisposeMessaging()
+    {
+        _messenger?.Dispose();
+        _messenger = null;
+    }
 
     public static void Subscribe(object driver)
     {
@@ -49,7 +65,7 @@ static class KeyboardDriverIMEPatch
         if (state.CompositionHandler != null)
             return;
 
-        LogPipeIdentityOnce();
+        InitializeMessaging();
         state.CompositionHandler = composition => OnIMECompositionChange(driver, composition);
         keyboard.onIMECompositionChange += state.CompositionHandler;
         ActiveDrivers.Add(driver);
@@ -65,13 +81,13 @@ static class KeyboardDriverIMEPatch
         _inputUpdateHooked = true;
     }
 
-    static void LogPipeIdentityOnce()
+    static void LogMessengerIdentityOnce()
     {
-        if (_pipeIdentityLogged)
+        if (_messengerIdentityLogged)
             return;
 
-        _pipeIdentityLogged = true;
-        DebugLog($"Renderer IME pipe client: {ImePipe.PipeDebugInfo}");
+        _messengerIdentityLogged = true;
+        DebugLog($"Renderer IME InterprocessLib sender: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\"");
     }
 
     public static void Unsubscribe(object driver)
@@ -131,8 +147,8 @@ static class KeyboardDriverIMEPatch
         }
 
         DebugLog($"CancelCompositionForInactiveKeyboard: composition=\"{EscapeForLog(state.ImeComposition)}\", caretOffset={state.CompositionCaretOffset}");
-        if (!PipeClient.SendComposition(string.Empty, string.Empty, -1))
-            DebugLog($"CancelCompositionForInactiveKeyboard pipe send failed: {ImePipe.PipeDebugInfo}");
+        if (!TrySendComposition(string.Empty, string.Empty, -1))
+            DebugLog("CancelCompositionForInactiveKeyboard InterprocessLib send failed.");
 
         ClearPendingTypeDelta(driver);
         ClearComposition(driver);
@@ -179,8 +195,8 @@ static class KeyboardDriverIMEPatch
             && IsLikelyFocusLossAccumulatedCommit(committedText, state.ImeComposition))
         {
             DebugLog($"OnIMECompositionChange treating accumulated focus-loss TypeDelta as cancel: committedLength={committedText.Length}, previousComposition=\"{EscapeForLog(state.ImeComposition)}\"");
-            if (!PipeClient.SendComposition(string.Empty, string.Empty, -1))
-                DebugLog($"OnIMECompositionChange focus-loss cancel pipe send failed: {ImePipe.PipeDebugInfo}");
+            if (!TrySendComposition(string.Empty, string.Empty, -1))
+                DebugLog("OnIMECompositionChange focus-loss cancel send failed.");
 
             ClearPendingTypeDelta(driver);
             ClearComposition(driver);
@@ -204,9 +220,9 @@ static class KeyboardDriverIMEPatch
         if (compositionString.Length > 0)
             state.CompositionCaretOffset = GetNextCompositionCaretOffset(state.ImeComposition, compositionString, state.CompositionCaretOffset, backspaceKeyActive);
 
-        if (PipeClient.SendComposition(compositionString, committedText, state.CompositionCaretOffset, editAction))
+        if (TrySendComposition(compositionString, committedText, state.CompositionCaretOffset, editAction))
         {
-            DebugLog($"OnIMECompositionChange sent to pipe: composition=\"{EscapeForLog(compositionString)}\", committed=\"{EscapeForLog(committedText)}\", caretOffset={state.CompositionCaretOffset}");
+            DebugLog($"OnIMECompositionChange sent via InterprocessLib: composition=\"{EscapeForLog(compositionString)}\", committed=\"{EscapeForLog(committedText)}\", caretOffset={state.CompositionCaretOffset}");
             ClearPendingTypeDelta(driver);
             state.ImeComposition = compositionString;
             if (compositionString.Length == 0)
@@ -217,7 +233,7 @@ static class KeyboardDriverIMEPatch
             return;
         }
 
-        DebugLog($"OnIMECompositionChange pipe send failed, falling back to typeDelta: {ImePipe.PipeDebugInfo}");
+        DebugLog("OnIMECompositionChange InterprocessLib send failed, falling back to typeDelta.");
 
         if (compositionString == state.ImeComposition)
             return;
@@ -535,8 +551,30 @@ static class KeyboardDriverIMEPatch
 
         state.CompositionCaretOffset = nextOffset;
         DebugLog($"MoveCompositionCaret send: key={key}, composition=\"{EscapeForLog(state.ImeComposition)}\", previousOffset={previousOffset}, nextOffset={nextOffset}");
-        if (!PipeClient.SendComposition(state.ImeComposition, string.Empty, state.CompositionCaretOffset, ImeEditAction.None))
-            DebugLog($"MoveCompositionCaret pipe send failed: {ImePipe.PipeDebugInfo}");
+        if (!TrySendComposition(state.ImeComposition, string.Empty, state.CompositionCaretOffset, ImeEditAction.None))
+            DebugLog("MoveCompositionCaret send failed.");
+    }
+
+    static bool TrySendComposition(string composition, string committedText, int caretOffset, ImeEditAction editAction = ImeEditAction.None)
+    {
+        try
+        {
+            InitializeMessaging();
+            _messenger!.SendObject(ImeInterprocessChannel.MessageId, new ImeInterprocessMessage
+            {
+                Composition = composition,
+                CommittedText = committedText,
+                CaretOffset = caretOffset,
+                EditAction = editAction
+            });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            DebugLog($"InterprocessLib send threw {ex.GetType().Name}: {EscapeForLog(ex.Message)}");
+            DisposeMessaging();
+            return false;
+        }
     }
 
     public static void TrimTypeDelta(object driver, int length)
