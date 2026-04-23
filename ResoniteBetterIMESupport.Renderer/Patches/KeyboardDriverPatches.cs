@@ -1,7 +1,6 @@
 using HarmonyLib;
 using Renderite.Shared;
 using System.Reflection;
-using RenderiteKeyboardState = Renderite.Shared.KeyboardState;
 
 namespace ResoniteBetterIMESupport.Renderer.Patches;
 
@@ -25,17 +24,15 @@ static class KeyboardDriverUpdateStatePatch
         KeyboardDriverIMEPatch.GetState(__instance).LastUpdateTypeDeltaLength = __state;
     }
 
-    static void Postfix(object __instance, RenderiteKeyboardState state, int __state)
+    static void Postfix(object __instance, KeyboardState state, int __state)
     {
-        KeyboardDriverIMEPatch.ApplyRenderiteCompositionState(__instance, state);
+        if (!KeyboardDriverIMEPatch.HasComposition(__instance))
+            return;
 
-        if (KeyboardDriverIMEPatch.HasComposition(__instance))
-        {
-            if (!ResoniteBetterIMESupport.Shared.RenderiteCompositionContract.IsSupported && __state >= 0)
-                KeyboardDriverIMEPatch.TrimTypeDelta(__instance, __state);
+        if (__state >= 0)
+            KeyboardDriverIMEPatch.TrimTypeDelta(__instance, __state);
 
-            KeyboardDriverIMEPatch.RemoveIMEEditingKeys(state);
-        }
+        KeyboardDriverIMEPatch.RemoveIMEEditingKeys(state);
     }
 }
 

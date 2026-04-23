@@ -144,54 +144,6 @@ static class EngineIMEPatch
         return true;
     }
 
-    public static bool ApplyKeyboardStateComposition(bool active, string composition, int selectionStart, int selectionLength, string committedText, ImeEditAction editAction)
-    {
-        var text = _editingText;
-        var consumedCommittedText = false;
-
-        if (text == null)
-            return false;
-
-        var committedCurrentComposition = HasCompositionRange && committedText == _composition;
-
-        if (committedText.Length > 0)
-        {
-            CommitText(committedText);
-            consumedCommittedText = true;
-        }
-
-        if (active && committedCurrentComposition && composition == committedText)
-        {
-            DebugLog($"ApplyKeyboardStateComposition ignored stale active composition after commit: committed=\"{EscapeForLog(committedText)}\", composition=\"{EscapeForLog(composition)}\", {DebugState}");
-            return true;
-        }
-
-        if (!active)
-        {
-            if (!HasCompositionRange && _composition.Length == 0)
-                return consumedCommittedText;
-
-            if (HasCompositionRange)
-            {
-                DeleteCompositionRange();
-                _stringChanged = true;
-            }
-
-            HasSelection = false;
-            _isTypingUnsettled = false;
-            _composition = string.Empty;
-            _compositionStart = -1;
-            _compositionCaretOffset = -1;
-            DebugLog($"ApplyKeyboardStateComposition inactive: committed=\"{EscapeForLog(committedText)}\", {DebugState}");
-            return consumedCommittedText;
-        }
-
-        var caretOffset = ClampCompositionCaretOffset(selectionStart + selectionLength, composition.Length);
-        var message = new ImePipeMessage(composition, string.Empty, caretOffset, editAction);
-        ApplyMessage(text, message);
-        return consumedCommittedText;
-    }
-
     public static bool TryGetCompositionCaretVisual(TextEditingVisuals visuals, out int caretPosition, out colorX caretColor)
     {
         caretPosition = -1;
@@ -580,10 +532,13 @@ static class EngineIMEPatch
 
     static bool IsLikelyImplicitCommitBeforeNewComposition(ImePipeMessage message)
     {
-        if (!HasCompositionRange || message.CommittedText.Length > 0 || message.Composition.Length == 0 || _composition.Length <= 1)
+        if (!HasCompositionRange || message.CommittedText.Length > 0 || message.Composition.Length == 0)
             return false;
 
         if (message.EditAction == ImeEditAction.Backspace || message.EditAction == ImeEditAction.Delete)
+            return false;
+
+        if (_composition.Length <= 1)
             return false;
 
         if (message.CaretOffset > Math.Min(message.Composition.Length, 1))
@@ -605,7 +560,7 @@ static class EngineIMEPatch
             if (IsCjkUnifiedIdeograph(ch))
                 continue;
 
-            if (char.IsLetterOrDigit(ch) || IsFullwidthAscii(ch) || IsJapaneseKana(ch) || IsHangul(ch) || IsBopomofo(ch))
+            if (char.IsLetterOrDigit(ch) || IsFullwidthAscii(ch) || IsJapaneseKana(ch) || IsJapanesePunctuation(ch) || IsHangul(ch) || IsBopomofo(ch))
                 return true;
         }
 
@@ -653,6 +608,14 @@ static class EngineIMEPatch
         (ch >= '\u3040' && ch <= '\u30FF')
         || (ch >= '\u31F0' && ch <= '\u31FF')
         || (ch >= '\uFF66' && ch <= '\uFF9D');
+
+    static bool IsJapanesePunctuation(char ch) =>
+        ch == '\u3001'
+        || ch == '\u3002'
+        || ch == '\uFF0C'
+        || ch == '\uFF0E'
+        || ch == '\uFF61'
+        || ch == '\uFF64';
 
     static bool IsHangul(char ch) =>
         (ch >= '\u1100' && ch <= '\u11FF')

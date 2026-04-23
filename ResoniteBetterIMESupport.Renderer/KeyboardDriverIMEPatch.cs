@@ -131,7 +131,7 @@ static class KeyboardDriverIMEPatch
         }
 
         DebugLog($"CancelCompositionForInactiveKeyboard: composition=\"{EscapeForLog(state.ImeComposition)}\", caretOffset={state.CompositionCaretOffset}");
-        if (!RenderiteCompositionContract.IsSupported && !PipeClient.SendComposition(string.Empty, string.Empty, -1))
+        if (!PipeClient.SendComposition(string.Empty, string.Empty, -1))
             DebugLog($"CancelCompositionForInactiveKeyboard pipe send failed: {ImePipe.PipeDebugInfo}");
 
         ClearPendingTypeDelta(driver);
@@ -179,7 +179,7 @@ static class KeyboardDriverIMEPatch
             && IsLikelyFocusLossAccumulatedCommit(committedText, state.ImeComposition))
         {
             DebugLog($"OnIMECompositionChange treating accumulated focus-loss TypeDelta as cancel: committedLength={committedText.Length}, previousComposition=\"{EscapeForLog(state.ImeComposition)}\"");
-            if (!RenderiteCompositionContract.IsSupported && !PipeClient.SendComposition(string.Empty, string.Empty, -1))
+            if (!PipeClient.SendComposition(string.Empty, string.Empty, -1))
                 DebugLog($"OnIMECompositionChange focus-loss cancel pipe send failed: {ImePipe.PipeDebugInfo}");
 
             ClearPendingTypeDelta(driver);
@@ -200,11 +200,6 @@ static class KeyboardDriverIMEPatch
             return;
         }
 
-        if (RenderiteCompositionContract.IsSupported)
-        {
-            UpdateLocalCompositionState(state, compositionString, backspaceKeyActive);
-            return;
-        }
 
         if (compositionString.Length > 0)
             state.CompositionCaretOffset = GetNextCompositionCaretOffset(state.ImeComposition, compositionString, state.CompositionCaretOffset, backspaceKeyActive);
@@ -251,45 +246,6 @@ static class KeyboardDriverIMEPatch
         ReplaceComposition(typeDelta, state.ImeComposition, compositionString);
         state.ImeComposition = compositionString;
         state.CompositionCaretOffset = compositionString.Length;
-    }
-
-    static void UpdateLocalCompositionState(DriverState state, string compositionString, bool backspaceKeyActive)
-    {
-        if (compositionString.Length > 0)
-            state.CompositionCaretOffset = GetNextCompositionCaretOffset(state.ImeComposition, compositionString, state.CompositionCaretOffset, backspaceKeyActive);
-        else
-            state.CompositionCaretOffset = -1;
-
-        state.ImeComposition = compositionString;
-        state.SuppressEmptyCompositionEndUntilTimestamp = 0;
-    }
-
-    public static void ApplyRenderiteCompositionState(object driver, RenderiteKeyboardState keyboardState)
-    {
-        if (!RenderiteCompositionContract.IsSupported)
-            return;
-
-        var state = GetState(driver);
-        var composition = state.ImeComposition;
-
-        if (RenderiteCompositionContract.TryGet(keyboardState, out var active, out var renderiteComposition, out _, out _)
-            && active
-            && renderiteComposition.Length > 0
-            && !string.Equals(renderiteComposition, composition, StringComparison.Ordinal))
-        {
-            state.CompositionCaretOffset = GetNextCompositionCaretOffset(composition, renderiteComposition, state.CompositionCaretOffset, false);
-            composition = renderiteComposition;
-        }
-        else if (composition.Length > 0 && state.CompositionCaretOffset < 0)
-        {
-            state.CompositionCaretOffset = composition.Length;
-        }
-
-        RenderiteCompositionContract.Set(keyboardState, composition, state.CompositionCaretOffset);
-        state.ImeComposition = composition;
-
-        if (composition.Length == 0)
-            state.CompositionCaretOffset = -1;
     }
 
     static ImeEditAction GetImeEditAction(bool backspaceKeyActive, bool deleteKeyActive)

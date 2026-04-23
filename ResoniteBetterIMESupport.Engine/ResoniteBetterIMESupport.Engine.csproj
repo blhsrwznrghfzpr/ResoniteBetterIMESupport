@@ -10,7 +10,6 @@
   <ItemGroup>
     <Compile Include="..\ResoniteBetterIMESupport.Shared\ImePipe.cs" Link="Shared\ImePipe.cs" />
     <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeKeys.cs" Link="Shared\ImeKeys.cs" />
-    <Compile Include="..\ResoniteBetterIMESupport.Shared\RenderiteCompositionContract.cs" Link="Shared\RenderiteCompositionContract.cs" />
   </ItemGroup>
 
   <ItemGroup>
