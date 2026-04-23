@@ -54,6 +54,11 @@ If copy-to-profile fails, check whether Resonite is still running and locking th
 ## Implementation Notes
 
 - When changing Harmony patches or behavior that depends on Resonite/FrooxEngine internals, inspect `../reso-decompile/sources` as needed. Use it to confirm target method names, state-machine shapes, private fields/properties, and text-editing behavior before changing transpilers or reflection code.
+- For IME compatibility, keep preedit/composition state separate from committed text. Prefer the Renderite `KeyboardState` composition payload when available and keep the named-pipe path as a fallback for older runtimes; do not infer IME state only from physical keys or `typeDelta`.
+- Japanese IMEs commonly commit the selected clause implicitly when the user starts typing the next word. When `KeyboardState` contains both committed `typeDelta` and a non-empty next composition in the same update, commit the text into the old composition range first, clear `InputInterface.TypeDelta`, then apply the new preedit range.
+- Older Renderite builds may lack `KeyboardState` composition fields, so the named-pipe fallback must also handle implicit clause commits. If an existing composition is still active and a short starter preedit arrives with no committed text, commit the old composition range before inserting the new preedit; avoid treating CJK candidate updates as starters.
+- When the named-pipe fallback handles IME composition or committed text, suppress the corresponding `InputInterface.TypeDelta` until a non-empty update is seen. For implicit commits, also remember the committed composition text and suppress an exact matching later `TypeDelta`; Japanese IMEs can deliver that duplicate commit after several empty keyboard updates.
+- The unreleased Renderite/Renderite.Unity.Renderer concept implementation already writes `Input.compositionString` into `KeyboardState` during `KeyboardDriver.UpdateState`. When that contract exists, merge the original `KeyboardState` composition in the renderer postfix instead of blindly overwriting it with MOD-local event state.
 - Preserve the named-pipe protocol in `Shared/ImePipe.cs`: base64 fields separated by tabs, carrying composition, committed text, and caret offset. If the message format changes, update both sides together and consider a pipe-name version bump.
 - Renderer-side pipe identity intentionally derives from the parent process when running in a renderer process so the engine and renderer share a session-specific pipe. Be cautious changing process-name or parent-process logic.
 - Keep IME debug logging behind the `Debug/EnableDebugLogging` config entry on both sides. Verbose logs should go through `LogDebugIme`.
@@ -72,3 +77,18 @@ After behavioral changes, test at least these flows in Resonite when possible:
 - confirm both logs contain the load messages for Engine and Renderer plugins
 
 If only build validation was possible, say so explicitly in the final response.
+
+## Completion Build
+
+At the end of implementation work, enable debug logging in both installed BepInEx config files before running the replacement build:
+
+- `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\BepInEx\config\dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Engine.cfg`
+- `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\config\dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Renderer.cfg`
+
+Set `EnableDebugLogging = true` in both files, then run:
+
+```powershell
+dotnet build ResoniteBetterIMESupport.sln -c Release -p:CopyToPlugins=true
+```
+
+Only change the installed local config files for this step. Do not commit changes that alter the plugin's default debug config value or any tracked config defaults.

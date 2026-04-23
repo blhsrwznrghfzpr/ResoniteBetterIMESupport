@@ -35,9 +35,11 @@ static class KeyboardDriverUpdateStatePatch
 
     static void Postfix(object __instance, RenderiteKeyboardState state, int __state)
     {
+        KeyboardDriverIMEPatch.ApplyRenderiteCompositionState(__instance, state);
+
         if (KeyboardDriverIMEPatch.HasComposition(__instance))
         {
-            if (__state >= 0)
+            if (!ResoniteBetterIMESupport.Shared.RenderiteCompositionContract.IsSupported && __state >= 0)
                 KeyboardDriverIMEPatch.TrimTypeDelta(__instance, __state);
 
             KeyboardDriverIMEPatch.RemoveIMEEditingKeys(state);

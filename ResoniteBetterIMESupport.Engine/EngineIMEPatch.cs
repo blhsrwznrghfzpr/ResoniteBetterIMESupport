@@ -4,6 +4,7 @@ using FrooxEngine;
 using HarmonyLib;
 using Renderite.Shared;
 using ResoniteBetterIMESupport.Shared;
+using System.Collections.Generic;
 
 namespace ResoniteBetterIMESupport.Engine;
 
@@ -16,6 +17,8 @@ static class EngineIMEPatch
     static string _composition = string.Empty;
     static int _compositionStart = -1;
     static int _compositionCaretOffset = -1;
+    static int _suppressKeyboardTypeDeltaUpdates;
+    static readonly Queue<string> PendingSuppressedTypeDeltas = new();
 
     public static bool IsTypingUnsettled => _isTypingUnsettled;
 
@@ -47,6 +50,8 @@ static class EngineIMEPatch
         _composition = string.Empty;
         _compositionStart = -1;
         _compositionCaretOffset = -1;
+        _suppressKeyboardTypeDeltaUpdates = 0;
+        PendingSuppressedTypeDeltas.Clear();
     }
 
     public static void ClearEditingText()
@@ -57,6 +62,8 @@ static class EngineIMEPatch
         _composition = string.Empty;
         _compositionStart = -1;
         _compositionCaretOffset = -1;
+        _suppressKeyboardTypeDeltaUpdates = 0;
+        PendingSuppressedTypeDeltas.Clear();
     }
 
     public static bool ConsumeStringChanged()
@@ -66,6 +73,65 @@ static class EngineIMEPatch
 
         _stringChanged = false;
         return true;
+    }
+
+    public static bool ShouldSuppressKeyboardTypeDelta(string typeDelta)
+    {
+        if (typeDelta.Length == 0)
+            return false;
+
+        if (ConsumePendingSuppressedTypeDelta(typeDelta))
+        {
+            DebugLog($"Suppressing pending IME TypeDelta: typeDelta=\"{EscapeForLog(typeDelta)}\", {DebugState}");
+            return true;
+        }
+
+        if (_suppressKeyboardTypeDeltaUpdates <= 0)
+            return false;
+
+        _suppressKeyboardTypeDeltaUpdates--;
+        DebugLog($"Suppressing keyboard TypeDelta after IME pipe handling: typeDelta=\"{EscapeForLog(typeDelta)}\", {DebugState}");
+        return true;
+    }
+
+    public static bool ApplyKeyboardStateComposition(bool active, string composition, int selectionStart, int selectionLength, string committedText)
+    {
+        var text = _editingText;
+        var consumedCommittedText = false;
+
+        if (text == null)
+            return false;
+
+        if (committedText.Length > 0)
+        {
+            CommitText(committedText);
+            consumedCommittedText = true;
+        }
+
+        if (!active)
+        {
+            if (!HasCompositionRange && _composition.Length == 0)
+                return consumedCommittedText;
+
+            if (HasCompositionRange)
+            {
+                DeleteCompositionRange();
+                _stringChanged = true;
+            }
+
+            HasSelection = false;
+            _isTypingUnsettled = false;
+            _composition = string.Empty;
+            _compositionStart = -1;
+            _compositionCaretOffset = -1;
+            DebugLog($"ApplyKeyboardStateComposition inactive: committed=\"{EscapeForLog(committedText)}\", {DebugState}");
+            return consumedCommittedText;
+        }
+
+        var caretOffset = ClampCompositionCaretOffset(selectionStart + selectionLength, composition.Length);
+        var message = new ImePipeMessage(composition, string.Empty, caretOffset);
+        ApplyMessage(text, message);
+        return consumedCommittedText;
     }
 
     public static bool TryGetCompositionCaretVisual(TextEditingVisuals visuals, out int caretPosition, out colorX caretColor)
@@ -118,6 +184,7 @@ static class EngineIMEPatch
 
         DebugLog($"ApplyMessage begin: message={DescribeMessage(message)}, {DebugState}");
 
+        MarkKeyboardTypeDeltaForSuppression();
         RestoreCompositionRangeIfTextEditorDeletedIt();
 
         if (message.Composition.Length == 0)
@@ -157,6 +224,14 @@ static class EngineIMEPatch
             return;
         }
 
+        if (IsLikelyImplicitCommitBeforeNewComposition(message))
+        {
+            var committedComposition = _composition;
+            CommitText(committedComposition);
+            AddPendingSuppressedTypeDelta(committedComposition);
+            DebugLog($"ApplyMessage implicit composition commit before new composition: committed=\"{EscapeForLog(committedComposition)}\", message={DescribeMessage(message)}, {DebugState}");
+        }
+
         if (HasCompositionRange)
             DeleteCompositionRange();
         else if (HasSelection)
@@ -180,6 +255,66 @@ static class EngineIMEPatch
 
         SelectionStart = _compositionStart;
         CaretPosition = _compositionStart + _composition.Length;
+    }
+
+    static void CommitText(string committedText)
+    {
+        if (committedText.Length == 0)
+            return;
+
+        MarkKeyboardTypeDeltaForSuppression();
+
+        if (HasCompositionRange && committedText == _composition)
+        {
+            CaretPosition = _compositionStart + _composition.Length;
+        }
+        else
+        {
+            if (HasCompositionRange)
+                DeleteCompositionRange();
+            else if (HasSelection)
+                DeleteSelection();
+
+            InsertText(committedText);
+            _stringChanged = true;
+        }
+
+        HasSelection = false;
+        _isTypingUnsettled = false;
+        _composition = string.Empty;
+        _compositionStart = -1;
+        _compositionCaretOffset = -1;
+        DebugLog($"CommitText: committed=\"{EscapeForLog(committedText)}\", {DebugState}");
+    }
+
+    static void MarkKeyboardTypeDeltaForSuppression() => _suppressKeyboardTypeDeltaUpdates = Math.Max(_suppressKeyboardTypeDeltaUpdates, 8);
+
+    static void AddPendingSuppressedTypeDelta(string value)
+    {
+        if (value.Length == 0)
+            return;
+
+        PendingSuppressedTypeDeltas.Enqueue(value);
+
+        while (PendingSuppressedTypeDeltas.Count > 8)
+            PendingSuppressedTypeDeltas.Dequeue();
+    }
+
+    static bool ConsumePendingSuppressedTypeDelta(string typeDelta)
+    {
+        var count = PendingSuppressedTypeDeltas.Count;
+
+        for (var i = 0; i < count; i++)
+        {
+            var pending = PendingSuppressedTypeDeltas.Dequeue();
+
+            if (typeDelta == pending)
+                return true;
+
+            PendingSuppressedTypeDeltas.Enqueue(pending);
+        }
+
+        return false;
     }
 
     static bool IsCompositionVisualSelectionActive =>
@@ -271,7 +406,16 @@ static class EngineIMEPatch
 
     static int SelectionLength => !HasSelection ? 0 : MathX.Abs(CaretPosition - SelectionStart);
 
-    static bool HasCompositionRange => _editingText != null && _compositionStart >= 0 && _composition.Length > 0 && _compositionStart + _composition.Length <= _editingText.Text.Length;
+    static bool HasCompositionRange
+    {
+        get
+        {
+            if (_editingText == null || _compositionStart < 0 || _composition.Length == 0 || _compositionStart + _composition.Length > _editingText.Text.Length)
+                return false;
+
+            return string.CompareOrdinal(_editingText.Text, _compositionStart, _composition, 0, _composition.Length) == 0;
+        }
+    }
 
     static void DeleteCompositionRange()
     {
@@ -305,6 +449,60 @@ static class EngineIMEPatch
 
         return Math.Max(0, Math.Min(caretOffset, compositionLength));
     }
+
+    static bool IsLikelyImplicitCommitBeforeNewComposition(ImePipeMessage message)
+    {
+        if (!HasCompositionRange || message.CommittedText.Length > 0 || message.Composition.Length == 0 || _composition.Length <= 1)
+            return false;
+
+        if (message.CaretOffset > Math.Min(message.Composition.Length, 1))
+            return false;
+
+        if (message.Composition.Length > 2)
+            return false;
+
+        if (_composition.StartsWith(message.Composition, StringComparison.Ordinal) || message.Composition.StartsWith(_composition, StringComparison.Ordinal))
+            return false;
+
+        return IsLikelyCompositionStarter(message.Composition);
+    }
+
+    static bool IsLikelyCompositionStarter(string value)
+    {
+        foreach (var ch in value)
+        {
+            if (IsCjkUnifiedIdeograph(ch))
+                continue;
+
+            if (char.IsLetterOrDigit(ch) || IsFullwidthAscii(ch) || IsJapaneseKana(ch) || IsHangul(ch) || IsBopomofo(ch))
+                return true;
+        }
+
+        return false;
+    }
+
+    static bool IsFullwidthAscii(char ch) => ch >= '\uFF01' && ch <= '\uFF5E';
+
+    static bool IsJapaneseKana(char ch) =>
+        (ch >= '\u3040' && ch <= '\u30FF')
+        || (ch >= '\u31F0' && ch <= '\u31FF')
+        || (ch >= '\uFF66' && ch <= '\uFF9D');
+
+    static bool IsHangul(char ch) =>
+        (ch >= '\u1100' && ch <= '\u11FF')
+        || (ch >= '\u3130' && ch <= '\u318F')
+        || (ch >= '\uA960' && ch <= '\uA97F')
+        || (ch >= '\uAC00' && ch <= '\uD7AF')
+        || (ch >= '\uD7B0' && ch <= '\uD7FF');
+
+    static bool IsBopomofo(char ch) =>
+        (ch >= '\u3100' && ch <= '\u312F')
+        || (ch >= '\u31A0' && ch <= '\u31BF');
+
+    static bool IsCjkUnifiedIdeograph(char ch) =>
+        (ch >= '\u3400' && ch <= '\u4DBF')
+        || (ch >= '\u4E00' && ch <= '\u9FFF')
+        || (ch >= '\uF900' && ch <= '\uFAFF');
 
     static string BuildDebugState()
     {
