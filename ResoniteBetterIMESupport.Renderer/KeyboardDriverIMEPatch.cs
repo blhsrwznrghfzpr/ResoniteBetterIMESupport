@@ -88,7 +88,11 @@ static class KeyboardDriverIMEPatch
 
     public static bool HasComposition(object driver) => GetState(driver).ImeComposition.Length > 0;
 
-    public static bool ShouldSuppressTypeDelta(object driver) => HasComposition(driver) || GetState(driver).SuppressTypeDeltaUpdates > 0;
+    public static bool ShouldSuppressTypeDelta(object driver)
+    {
+        var state = GetState(driver);
+        return state.PendingSuppressedCommittedText.Length > 0;
+    }
 
     public static void LogSuppressedTypeDelta(object driver, int previousLength)
     {
@@ -105,11 +109,25 @@ static class KeyboardDriverIMEPatch
         if (length < 0)
             return;
 
+        var state = GetState(driver);
         var typeDelta = GetTypeDelta(driver);
         if (typeDelta == null || typeDelta.Length <= length)
             return;
 
-        typeDelta.Length = length;
+        if (state.PendingSuppressedCommittedText.Length == 0)
+            return;
+
+        var appendedLength = typeDelta.Length - length;
+        var appendedText = typeDelta.ToString(length, appendedLength);
+        var pending = state.PendingSuppressedCommittedText;
+        var matchedLength = GetSharedPrefixLength(appendedText, pending);
+        if (matchedLength <= 0)
+            return;
+
+        typeDelta.Remove(length, matchedLength);
+        state.PendingSuppressedCommittedText = matchedLength >= pending.Length
+            ? string.Empty
+            : pending.Substring(matchedLength);
     }
 
     public static void RemoveIMEEditingKeys(RenderiteKeyboardState state)
@@ -140,7 +158,6 @@ static class KeyboardDriverIMEPatch
         if (!TrySendMessage(ImeMessageKind.CancelComposition, string.Empty, -1))
             DebugLog("Cancel composition send failed.");
 
-        state.SuppressTypeDeltaUpdates = Math.Max(state.SuppressTypeDeltaUpdates, 2);
         ClearComposition(state);
     }
 
@@ -169,35 +186,33 @@ static class KeyboardDriverIMEPatch
         var state = GetState(driver);
         DebugLog($"OnIMECompositionChange: composition=\"{EscapeForLog(compositionText)}\", previous=\"{EscapeForLog(state.ImeComposition)}\", caretOffset={state.CompositionCaretOffset}");
 
+        if (compositionText.Length == 0 && state.ImeComposition.Length > 0)
+        {
+            state.PendingImplicitCommittedText = state.ImeComposition;
+            state.AwaitingImplicitCommitFollowup = true;
+            state.PendingComposition = string.Empty;
+            state.PendingCompositionCaretOffset = -1;
+            state.HasPendingCompositionChange = false;
+            DebugLog($"Queued implicit commit awaiting next composition: committed=\"{EscapeForLog(state.PendingImplicitCommittedText)}\"");
+            return;
+        }
+
+        var nextCaretOffset = compositionText.Length == 0
+            ? -1
+            : GetNextCompositionCaretOffset(state.ImeComposition, compositionText, state.CompositionCaretOffset);
+        state.PendingComposition = compositionText;
+        state.PendingCompositionCaretOffset = nextCaretOffset;
+        state.HasPendingCompositionChange = true;
+
         if (compositionText.Length == 0)
-        {
-            if (state.ImeComposition.Length == 0)
-                return;
-
-            if (!TrySendMessage(ImeMessageKind.CommitComposition, string.Empty, -1))
-                DebugLog("Commit composition send failed.");
-
-            state.SuppressTypeDeltaUpdates = Math.Max(state.SuppressTypeDeltaUpdates, 2);
-            ClearComposition(state);
             return;
-        }
 
-        state.CompositionCaretOffset = GetNextCompositionCaretOffset(state.ImeComposition, compositionText, state.CompositionCaretOffset);
-
-        if (!TrySendMessage(ImeMessageKind.UpdateComposition, compositionText, state.CompositionCaretOffset))
-        {
-            DebugLog("Update composition send failed.");
-            return;
-        }
-
-        state.ImeComposition = compositionText;
+        FlushPendingImeFrame(driver);
     }
 
     public static void OnUpdateStateFinished(object driver)
     {
-        var state = GetState(driver);
-        if (state.SuppressTypeDeltaUpdates > 0)
-            state.SuppressTypeDeltaUpdates--;
+        FlushPendingImeFrame(driver);
     }
 
     public static void SynchronizeCompositionCaret(object driver, Keyboard keyboard)
@@ -259,7 +274,70 @@ static class KeyboardDriverIMEPatch
             DebugLog("Caret move send failed.");
     }
 
-    static bool TrySendMessage(ImeMessageKind kind, string composition, int caretOffset)
+    static void FlushPendingImeFrame(object driver)
+    {
+        var state = GetState(driver);
+        if (!state.HasPendingCompositionChange)
+            return;
+
+        var typeDelta = GetTypeDelta(driver);
+        var committedText = typeDelta == null ? string.Empty : ExtractCommittedText(typeDelta.ToString());
+        var nextComposition = state.PendingComposition;
+        var nextCaretOffset = state.PendingCompositionCaretOffset;
+        var kind = nextComposition.Length == 0 ? ImeMessageKind.CommitComposition : ImeMessageKind.UpdateComposition;
+
+        if (state.AwaitingImplicitCommitFollowup && state.PendingImplicitCommittedText.Length > 0)
+        {
+            if (committedText.Length == 0
+                && kind == ImeMessageKind.UpdateComposition
+                && ShouldCommitPendingImplicit(state.PendingImplicitCommittedText, nextComposition))
+            {
+                committedText = state.PendingImplicitCommittedText;
+                DebugLog($"Sending composition with implicit commit: committed=\"{EscapeForLog(committedText)}\", composition=\"{EscapeForLog(nextComposition)}\"");
+            }
+            else
+            {
+                DebugLog($"Ignored pending implicit commit because next composition looked like a continuation: committed=\"{EscapeForLog(state.PendingImplicitCommittedText)}\", composition=\"{EscapeForLog(nextComposition)}\"");
+            }
+        }
+
+        if (kind == ImeMessageKind.CommitComposition && state.ImeComposition.Length == 0 && committedText.Length == 0)
+        {
+            state.HasPendingCompositionChange = false;
+            return;
+        }
+
+        if (kind == ImeMessageKind.UpdateComposition
+            && committedText.Length == 0
+            && string.Equals(nextComposition, state.ImeComposition, StringComparison.Ordinal)
+            && nextCaretOffset == state.CompositionCaretOffset)
+        {
+            state.HasPendingCompositionChange = false;
+            state.PendingComposition = string.Empty;
+            state.PendingCompositionCaretOffset = -1;
+            return;
+        }
+
+        if (!TrySendMessage(kind, nextComposition, nextCaretOffset, committedText))
+        {
+            DebugLog($"{kind} send failed.");
+            return;
+        }
+
+        state.PendingSuppressedCommittedText = committedText;
+        state.ImeComposition = nextComposition;
+        state.CompositionCaretOffset = nextCaretOffset;
+        state.HasPendingCompositionChange = false;
+        state.PendingComposition = string.Empty;
+        state.PendingCompositionCaretOffset = -1;
+        state.PendingImplicitCommittedText = string.Empty;
+        state.AwaitingImplicitCommitFollowup = false;
+
+        if (nextComposition.Length == 0)
+            ClearComposition(state);
+    }
+
+    static bool TrySendMessage(ImeMessageKind kind, string composition, int caretOffset, string committedText = "")
     {
         try
         {
@@ -268,6 +346,7 @@ static class KeyboardDriverIMEPatch
             {
                 Kind = kind,
                 Composition = composition,
+                CommittedText = committedText,
                 CaretOffset = caretOffset
             });
             return true;
@@ -294,7 +373,53 @@ static class KeyboardDriverIMEPatch
         state.ImeComposition = string.Empty;
         state.CompositionCaretOffset = -1;
         state.PreviousHeldCaretKeys.Clear();
+        state.PendingComposition = string.Empty;
+        state.PendingCompositionCaretOffset = -1;
+        state.HasPendingCompositionChange = false;
+        state.PendingImplicitCommittedText = string.Empty;
+        state.AwaitingImplicitCommitFollowup = false;
     }
+
+    static string ExtractCommittedText(string typeDelta)
+    {
+        if (string.IsNullOrEmpty(typeDelta))
+            return string.Empty;
+
+        var committedLength = 0;
+        while (committedLength < typeDelta.Length && !char.IsControl(typeDelta[committedLength]))
+            committedLength++;
+
+        return committedLength == 0 ? string.Empty : typeDelta.Substring(0, committedLength);
+    }
+
+    static bool ShouldCommitPendingImplicit(string pendingCommittedText, string nextComposition)
+    {
+        if (pendingCommittedText.Length == 0 || nextComposition.Length == 0)
+            return false;
+
+        if (string.Equals(pendingCommittedText, nextComposition, StringComparison.Ordinal))
+            return false;
+
+        if (nextComposition.StartsWith(pendingCommittedText, StringComparison.Ordinal)
+            || pendingCommittedText.StartsWith(nextComposition, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (pendingCommittedText.Length == 1 && IsSingleLatinStarter(nextComposition))
+            return false;
+
+        return true;
+    }
+
+    static bool IsSingleLatinStarter(string composition) =>
+        composition.Length == 1 && IsLatinLetter(composition[0]);
+
+    static bool IsLatinLetter(char value) =>
+        (value >= 'A' && value <= 'Z')
+        || (value >= 'a' && value <= 'z')
+        || (value >= '\uFF21' && value <= '\uFF3A')
+        || (value >= '\uFF41' && value <= '\uFF5A');
 
     static int GetNextCompositionCaretOffset(string previousComposition, string nextComposition, int previousCaretOffset)
     {
@@ -378,9 +503,14 @@ static class KeyboardDriverIMEPatch
     {
         public string ImeComposition = string.Empty;
         public int CompositionCaretOffset = -1;
-        public int SuppressTypeDeltaUpdates;
         public bool KeyboardInputActive;
         public Action<IMECompositionString>? CompositionHandler;
+        public string PendingComposition = string.Empty;
+        public int PendingCompositionCaretOffset = -1;
+        public bool HasPendingCompositionChange;
+        public string PendingSuppressedCommittedText = string.Empty;
+        public string PendingImplicitCommittedText = string.Empty;
+        public bool AwaitingImplicitCommitFollowup;
         public readonly HashSet<RenderiteKey> PreviousHeldCaretKeys = new();
     }
 

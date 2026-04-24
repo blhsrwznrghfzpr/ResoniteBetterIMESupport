@@ -25,6 +25,8 @@ static class KeyboardDriverUpdateStatePatch
 
     static void Postfix(object __instance, KeyboardState state, int __state)
     {
+        KeyboardDriverIMEPatch.OnUpdateStateFinished(__instance);
+
         if (KeyboardDriverIMEPatch.ShouldSuppressTypeDelta(__instance) && __state >= 0)
         {
             KeyboardDriverIMEPatch.LogSuppressedTypeDelta(__instance, __state);
@@ -33,8 +35,6 @@ static class KeyboardDriverUpdateStatePatch
 
         if (KeyboardDriverIMEPatch.HasComposition(__instance))
             KeyboardDriverIMEPatch.RemoveIMEEditingKeys(state);
-
-        KeyboardDriverIMEPatch.OnUpdateStateFinished(__instance);
     }
 }
 

@@ -5,6 +5,7 @@ using HarmonyLib;
 using InterprocessLib;
 using Renderite.Shared;
 using ResoniteBetterIMESupport.Shared;
+using System.Reflection;
 
 namespace ResoniteBetterIMESupport.Engine;
 
@@ -12,6 +13,7 @@ static class EngineIMEPatch
 {
     static IText? _editingText;
     static Messenger? _messenger;
+    static readonly MethodInfo? _setTypeDeltaMethod = AccessTools.PropertySetter(typeof(InputInterface), nameof(InputInterface.TypeDelta));
     static bool _stringChanged;
     static bool _isComposing;
     static string _compositionText = string.Empty;
@@ -123,10 +125,10 @@ static class EngineIMEPatch
         switch (message.Kind)
         {
             case ImeMessageKind.UpdateComposition:
-                ApplyComposition(message.Composition, message.CaretOffset);
+                ApplyComposition(message.Composition, message.CommittedText, message.CaretOffset);
                 break;
             case ImeMessageKind.CommitComposition:
-                CommitComposition();
+                CommitComposition(message.CommittedText);
                 break;
             case ImeMessageKind.CancelComposition:
                 CancelComposition();
@@ -134,14 +136,16 @@ static class EngineIMEPatch
         }
     }
 
-    static void ApplyComposition(string composition, int caretOffset)
+    static void ApplyComposition(string composition, string committedText, int caretOffset)
     {
         if (_editingText == null)
             return;
 
+        if (committedText.Length > 0)
+            CommitComposition(committedText);
+
         if (composition.Length == 0)
         {
-            CommitComposition();
             return;
         }
 
@@ -171,17 +175,32 @@ static class EngineIMEPatch
         DebugLog($"ApplyComposition replaced composition: {DebugState}");
     }
 
-    static void CommitComposition()
+    static void CommitComposition(string committedText = "")
     {
         if (_editingText == null)
             return;
 
-        if (HasCompositionRange)
+        if (committedText.Length > 0 && (!HasCompositionRange || !string.Equals(committedText, _compositionText, StringComparison.Ordinal)))
+        {
+            if (HasCompositionRange)
+                DeleteCompositionRange();
+            else if (HasSelection)
+                DeleteSelection();
+
+            InsertText(committedText);
+            HasSelection = false;
+            MarkTextChangeDirty();
+            _stringChanged = true;
+        }
+        else if (HasCompositionRange)
         {
             CaretPosition = _compositionStart + _compositionText.Length;
             HasSelection = false;
             MarkTextChangeDirty();
         }
+
+        if (committedText.Length > 0)
+            SuppressCommittedTypeDeltaPrefix(committedText);
 
         _isComposing = false;
         _compositionText = string.Empty;
@@ -257,6 +276,24 @@ static class EngineIMEPatch
         _editingText.Text = _editingText.Text.Remove(start, SelectionLength);
         CaretPosition = start;
         HasSelection = false;
+    }
+
+    static void SuppressCommittedTypeDeltaPrefix(string committedText)
+    {
+        if (_editingText == null || committedText.Length == 0)
+            return;
+
+        var inputInterface = _editingText.World?.InputInterface;
+        if (inputInterface == null)
+            return;
+
+        var typeDelta = inputInterface.TypeDelta ?? string.Empty;
+        if (!typeDelta.StartsWith(committedText, StringComparison.Ordinal))
+            return;
+
+        var trimmedTypeDelta = typeDelta.Substring(committedText.Length);
+        _setTypeDeltaMethod?.Invoke(inputInterface, new object?[] { trimmedTypeDelta });
+        DebugLog($"Suppressed engine TypeDelta prefix after IME commit: removedLength={committedText.Length}, remainingLength={trimmedTypeDelta.Length}");
     }
 
     static bool HasSelection
