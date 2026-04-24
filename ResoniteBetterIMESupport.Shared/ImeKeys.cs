@@ -10,8 +10,6 @@ internal static class ImeKeys
         Key.RightArrow,
         Key.UpArrow,
         Key.DownArrow,
-        Key.Backspace,
-        Key.Delete,
         Key.Home,
         Key.End
     };
@@ -22,12 +20,8 @@ internal static class ImeKeys
         Key.RightArrow,
         Key.UpArrow,
         Key.DownArrow,
-        Key.Backspace,
-        Key.Delete,
         Key.Home,
-        Key.End,
-        Key.PageUp,
-        Key.PageDown
+        Key.End
     };
 
     public static readonly Key[] CaretKeys =

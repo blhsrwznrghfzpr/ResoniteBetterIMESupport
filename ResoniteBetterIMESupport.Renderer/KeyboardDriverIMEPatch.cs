@@ -54,7 +54,6 @@ static class KeyboardDriverIMEPatch
     public static void Subscribe(object driver)
     {
         var keyboard = Keyboard.current;
-
         if (keyboard == null)
         {
             RendererPlugin.Logger.LogWarning("Keyboard.current is null. IME composition support was not attached.");
@@ -62,7 +61,6 @@ static class KeyboardDriverIMEPatch
         }
 
         var state = GetState(driver);
-
         if (state.CompositionHandler != null)
             return;
 
@@ -71,6 +69,79 @@ static class KeyboardDriverIMEPatch
         keyboard.onIMECompositionChange += state.CompositionHandler;
         ActiveDrivers.Add(driver);
         HookInputUpdate();
+    }
+
+    public static void Unsubscribe(object driver)
+    {
+        var state = GetState(driver);
+        if (state.CompositionHandler == null)
+            return;
+
+        var keyboard = Keyboard.current;
+        if (keyboard != null)
+            keyboard.onIMECompositionChange -= state.CompositionHandler;
+
+        ActiveDrivers.Remove(driver);
+        state.CompositionHandler = null;
+        ClearComposition(state);
+    }
+
+    public static bool HasComposition(object driver) => GetState(driver).ImeComposition.Length > 0;
+
+    public static bool ShouldSuppressTypeDelta(object driver) => HasComposition(driver) || GetState(driver).SuppressTypeDeltaUpdates > 0;
+
+    public static void LogSuppressedTypeDelta(object driver, int previousLength)
+    {
+        var typeDelta = GetTypeDelta(driver);
+        if (typeDelta == null || typeDelta.Length <= previousLength)
+            return;
+
+        var suppressed = typeDelta.ToString(previousLength, typeDelta.Length - previousLength);
+        DebugLog($"Suppressed renderer TypeDelta while IME handled input is active: full=\"{EscapeForLog(typeDelta.ToString())}\", suppressed=\"{EscapeForLog(suppressed)}\", composition=\"{EscapeForLog(GetState(driver).ImeComposition)}\"");
+    }
+
+    public static void TrimTypeDelta(object driver, int length)
+    {
+        if (length < 0)
+            return;
+
+        var typeDelta = GetTypeDelta(driver);
+        if (typeDelta == null || typeDelta.Length <= length)
+            return;
+
+        typeDelta.Length = length;
+    }
+
+    public static void RemoveIMEEditingKeys(RenderiteKeyboardState state)
+    {
+        if (state.heldKeys == null)
+            return;
+
+        foreach (var key in ImeKeys.RendererEditingKeys)
+            state.heldKeys.Remove(key);
+    }
+
+    public static void HandleKeyboardInputActive(object driver, bool keyboardInputActive)
+    {
+        var state = GetState(driver);
+        var wasKeyboardInputActive = state.KeyboardInputActive;
+        state.KeyboardInputActive = keyboardInputActive;
+
+        if (keyboardInputActive)
+            return;
+
+        if (!wasKeyboardInputActive || state.ImeComposition.Length == 0)
+        {
+            ClearComposition(state);
+            return;
+        }
+
+        DebugLog($"Keyboard input became inactive. Canceling composition=\"{EscapeForLog(state.ImeComposition)}\"");
+        if (!TrySendMessage(ImeMessageKind.CancelComposition, string.Empty, -1))
+            DebugLog("Cancel composition send failed.");
+
+        state.SuppressTypeDeltaUpdates = Math.Max(state.SuppressTypeDeltaUpdates, 2);
+        ClearComposition(state);
     }
 
     static void HookInputUpdate()
@@ -82,86 +153,9 @@ static class KeyboardDriverIMEPatch
         _inputUpdateHooked = true;
     }
 
-    static void LogMessengerIdentityOnce()
-    {
-        if (_messengerIdentityLogged)
-            return;
-
-        _messengerIdentityLogged = true;
-        DebugLog($"Renderer IME InterprocessLib sender: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\", queueName=\"{ImeInterprocessQueue.GetQueueName()}\"");
-    }
-
-    public static void Unsubscribe(object driver)
-    {
-        var state = GetState(driver);
-
-        if (state.CompositionHandler == null)
-            return;
-
-        var keyboard = Keyboard.current;
-
-        if (keyboard != null)
-            keyboard.onIMECompositionChange -= state.CompositionHandler;
-
-        ActiveDrivers.Remove(driver);
-        state.CompositionHandler = null;
-        state.ImeComposition = string.Empty;
-        state.CompositionCaretOffset = -1;
-        state.SuppressEmptyCompositionEndUntilTimestamp = 0;
-        state.PreviousHeldIMEEditingKeys.Clear();
-    }
-
-    public static void ClearComposition(object driver)
-    {
-        var state = GetState(driver);
-
-        state.ImeComposition = string.Empty;
-        state.CompositionCaretOffset = -1;
-        state.SuppressEmptyCompositionEndUntilTimestamp = 0;
-        state.PreviousHeldIMEEditingKeys.Clear();
-    }
-
-    public static void HandleKeyboardInputActive(object driver, bool keyboardInputActive)
-    {
-        var state = GetState(driver);
-        var wasKeyboardInputActive = state.KeyboardInputActive;
-        state.KeyboardInputActive = keyboardInputActive;
-
-        if (keyboardInputActive)
-        {
-            state.IgnoreNextEmptyCompositionCommit = false;
-            return;
-        }
-
-        if (wasKeyboardInputActive)
-            CancelCompositionForInactiveKeyboard(driver);
-    }
-
-    public static void CancelCompositionForInactiveKeyboard(object driver)
-    {
-        var state = GetState(driver);
-
-        if (state.ImeComposition.Length == 0)
-        {
-            ClearComposition(driver);
-            return;
-        }
-
-        DebugLog($"CancelCompositionForInactiveKeyboard: composition=\"{EscapeForLog(state.ImeComposition)}\", caretOffset={state.CompositionCaretOffset}");
-        if (!TrySendComposition(string.Empty, string.Empty, -1))
-            DebugLog("CancelCompositionForInactiveKeyboard InterprocessLib send failed.");
-
-        ClearPendingTypeDelta(driver);
-        ClearComposition(driver);
-        state.IgnoreNextEmptyCompositionCommit = true;
-    }
-
-    public static bool HasComposition(object driver) => !string.IsNullOrEmpty(GetState(driver).ImeComposition);
-
     static void OnAfterInputUpdate()
     {
         var keyboard = Keyboard.current;
-
         if (keyboard == null || ActiveDrivers.Count == 0)
             return;
 
@@ -171,195 +165,156 @@ static class KeyboardDriverIMEPatch
 
     static void OnIMECompositionChange(object driver, IMECompositionString composition)
     {
-        var compositionString = composition.ToString();
+        var compositionText = composition.ToString();
         var state = GetState(driver);
-        var typeDelta = GetTypeDelta(driver);
-        var committedText = typeDelta?.ToString() ?? string.Empty;
-        var backspaceKeyActive = IsCompositionBackspaceKeyActive();
-        var deleteKeyActive = IsCompositionDeleteKeyActive();
-        var editAction = GetImeEditAction(backspaceKeyActive, deleteKeyActive);
-        DebugLog($"OnIMECompositionChange begin: composition=\"{EscapeForLog(compositionString)}\", committed=\"{EscapeForLog(committedText)}\", previousComposition=\"{EscapeForLog(state.ImeComposition)}\", caretOffset={state.CompositionCaretOffset}, typeDeltaLength={typeDelta?.Length ?? -1}, backspaceKeyActive={backspaceKeyActive}, deleteKeyActive={deleteKeyActive}");
+        DebugLog($"OnIMECompositionChange: composition=\"{EscapeForLog(compositionText)}\", previous=\"{EscapeForLog(state.ImeComposition)}\", caretOffset={state.CompositionCaretOffset}");
 
-        if (compositionString.Length == 0 && state.IgnoreNextEmptyCompositionCommit)
+        if (compositionText.Length == 0)
         {
-            DebugLog($"OnIMECompositionChange ignoring empty composition commit after keyboard focus loss: committed=\"{EscapeForLog(committedText)}\"");
-            state.IgnoreNextEmptyCompositionCommit = false;
-            ClearPendingTypeDelta(driver);
+            if (state.ImeComposition.Length == 0)
+                return;
+
+            if (!TrySendMessage(ImeMessageKind.CommitComposition, string.Empty, -1))
+                DebugLog("Commit composition send failed.");
+
+            state.SuppressTypeDeltaUpdates = Math.Max(state.SuppressTypeDeltaUpdates, 2);
+            ClearComposition(state);
             return;
         }
 
-        if (compositionString.Length > 0)
-            state.IgnoreNextEmptyCompositionCommit = false;
+        state.CompositionCaretOffset = GetNextCompositionCaretOffset(state.ImeComposition, compositionText, state.CompositionCaretOffset);
 
-        if (compositionString.Length == 0
-            && state.ImeComposition.Length > 0
-            && IsLikelyFocusLossAccumulatedCommit(committedText, state.ImeComposition))
+        if (!TrySendMessage(ImeMessageKind.UpdateComposition, compositionText, state.CompositionCaretOffset))
         {
-            DebugLog($"OnIMECompositionChange treating accumulated focus-loss TypeDelta as cancel: committedLength={committedText.Length}, previousComposition=\"{EscapeForLog(state.ImeComposition)}\"");
-            if (!TrySendComposition(string.Empty, string.Empty, -1))
-                DebugLog("OnIMECompositionChange focus-loss cancel send failed.");
-
-            ClearPendingTypeDelta(driver);
-            ClearComposition(driver);
-            state.IgnoreNextEmptyCompositionCommit = true;
+            DebugLog("Update composition send failed.");
             return;
         }
 
-        if ((backspaceKeyActive || deleteKeyActive) && state.ImeComposition.Length > 1)
-            state.SuppressEmptyCompositionEndUntilTimestamp = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 10;
+        state.ImeComposition = compositionText;
+    }
 
-        if (compositionString.Length == 0 && state.ImeComposition.Length > 1 && IsSuppressingCompositionEndAfterDeletion(state)
-            && (committedText.Length == 0 || committedText == state.ImeComposition))
+    public static void OnUpdateStateFinished(object driver)
+    {
+        var state = GetState(driver);
+        if (state.SuppressTypeDeltaUpdates > 0)
+            state.SuppressTypeDeltaUpdates--;
+    }
+
+    public static void SynchronizeCompositionCaret(object driver, Keyboard keyboard)
+    {
+        var state = GetState(driver);
+        if (state.ImeComposition.Length == 0)
         {
-            DebugLog("OnIMECompositionChange suppressing transient empty composition after deletion");
-            state.SuppressEmptyCompositionEndUntilTimestamp = 0;
-            ClearPendingTypeDelta(driver);
+            state.PreviousHeldCaretKeys.Clear();
             return;
         }
 
-
-        if (compositionString.Length > 0)
-            state.CompositionCaretOffset = GetNextCompositionCaretOffset(state.ImeComposition, compositionString, state.CompositionCaretOffset, backspaceKeyActive);
-
-        if (TrySendComposition(compositionString, committedText, state.CompositionCaretOffset, editAction))
+        foreach (var key in ImeKeys.CaretKeys)
         {
-            DebugLog($"OnIMECompositionChange sent via InterprocessLib: composition=\"{EscapeForLog(compositionString)}\", committed=\"{EscapeForLog(committedText)}\", caretOffset={state.CompositionCaretOffset}");
-            ClearPendingTypeDelta(driver);
-            state.ImeComposition = compositionString;
-            if (compositionString.Length == 0)
+            var isPressed = IsCaretKeyPressed(key, keyboard);
+            var wasPressedThisFrame = IsCaretKeyPressedThisFrame(key, keyboard);
+            var wasHeld = state.PreviousHeldCaretKeys.Contains(key);
+
+            if ((wasPressedThisFrame || isPressed) && !wasHeld)
+                MoveCompositionCaret(state, key);
+
+            if (isPressed)
+                state.PreviousHeldCaretKeys.Add(key);
+            else
+                state.PreviousHeldCaretKeys.Remove(key);
+        }
+    }
+
+    static void MoveCompositionCaret(DriverState state, RenderiteKey key)
+    {
+        if (state.ImeComposition.Length == 0)
+            return;
+
+        var previousOffset = state.CompositionCaretOffset < 0 ? state.ImeComposition.Length : state.CompositionCaretOffset;
+        var nextOffset = previousOffset;
+
+        switch (key)
+        {
+            case RenderiteKey.LeftArrow:
+                nextOffset--;
+                break;
+            case RenderiteKey.RightArrow:
+                nextOffset++;
+                break;
+            case RenderiteKey.Home:
+                nextOffset = 0;
+                break;
+            case RenderiteKey.End:
+                nextOffset = state.ImeComposition.Length;
+                break;
+        }
+
+        nextOffset = Math.Max(0, Math.Min(nextOffset, state.ImeComposition.Length));
+        if (nextOffset == previousOffset)
+            return;
+
+        state.CompositionCaretOffset = nextOffset;
+        DebugLog($"MoveCompositionCaret: key={key}, nextOffset={nextOffset}, composition=\"{EscapeForLog(state.ImeComposition)}\"");
+        if (!TrySendMessage(ImeMessageKind.UpdateComposition, state.ImeComposition, state.CompositionCaretOffset))
+            DebugLog("Caret move send failed.");
+    }
+
+    static bool TrySendMessage(ImeMessageKind kind, string composition, int caretOffset)
+    {
+        try
+        {
+            InitializeMessaging();
+            _messenger!.SendObject(ImeInterprocessChannel.MessageId, new ImeInterprocessMessage
             {
-                state.CompositionCaretOffset = -1;
-                state.SuppressEmptyCompositionEndUntilTimestamp = 0;
-            }
-            return;
-        }
-
-        DebugLog("OnIMECompositionChange InterprocessLib send failed, falling back to typeDelta.");
-
-        if (compositionString == state.ImeComposition)
-            return;
-
-        if (typeDelta == null)
-        {
-            RendererPlugin.Logger.LogWarning("KeyboardDriver.typeDelta is null. IME composition update was skipped.");
-            return;
-        }
-
-        var pendingTextInput = TakeTypeDeltaSuffix(driver, state.LastUpdateTypeDeltaLength);
-        if (compositionString.Length == 0)
-        {
-            if (pendingTextInput.Length == 0)
-                pendingTextInput = TakeFullTypeDelta(driver);
-
-            if (pendingTextInput.Length > 0 && pendingTextInput != state.ImeComposition)
-                ReplaceComposition(typeDelta, state.ImeComposition, pendingTextInput);
-
-            state.ImeComposition = string.Empty;
-            state.CompositionCaretOffset = -1;
-            state.SuppressEmptyCompositionEndUntilTimestamp = 0;
-            return;
-        }
-
-        ReplaceComposition(typeDelta, state.ImeComposition, compositionString);
-        state.ImeComposition = compositionString;
-        state.CompositionCaretOffset = compositionString.Length;
-    }
-
-    static ImeEditAction GetImeEditAction(bool backspaceKeyActive, bool deleteKeyActive)
-    {
-        if (deleteKeyActive)
-            return ImeEditAction.Delete;
-
-        if (backspaceKeyActive)
-            return ImeEditAction.Backspace;
-
-        return ImeEditAction.None;
-    }
-
-    static bool IsCompositionBackspaceKeyActive()
-    {
-        var keyboard = Keyboard.current;
-
-        if (keyboard == null)
-            return false;
-
-        return keyboard.backspaceKey.wasPressedThisFrame
-            || keyboard.backspaceKey.isPressed;
-    }
-
-    static bool IsCompositionDeleteKeyActive()
-    {
-        var keyboard = Keyboard.current;
-
-        if (keyboard == null)
-            return false;
-
-        return keyboard.deleteKey.wasPressedThisFrame
-            || keyboard.deleteKey.isPressed;
-    }
-
-    static bool IsSuppressingCompositionEndAfterDeletion(DriverState state)
-    {
-        if (state.SuppressEmptyCompositionEndUntilTimestamp == 0)
-            return false;
-
-        if (Stopwatch.GetTimestamp() <= state.SuppressEmptyCompositionEndUntilTimestamp)
+                Kind = kind,
+                Composition = composition,
+                CaretOffset = caretOffset
+            });
             return true;
-
-        state.SuppressEmptyCompositionEndUntilTimestamp = 0;
-        return false;
-    }
-
-    static bool IsLikelyFocusLossAccumulatedCommit(string committedText, string previousComposition)
-    {
-        if (committedText.Length == 0 || previousComposition.Length == 0)
-            return false;
-
-        if (committedText.Length <= Math.Max(previousComposition.Length * 2, previousComposition.Length + 8))
-            return false;
-
-        var repeats = CountOccurrences(committedText, previousComposition);
-        if (repeats >= 2)
-            return true;
-
-        var prefixLength = Math.Min(previousComposition.Length, committedText.Length);
-        return string.CompareOrdinal(committedText, 0, previousComposition, 0, prefixLength) == 0
-            && committedText.Length > previousComposition.Length * 3;
-    }
-
-    static int CountOccurrences(string value, string pattern)
-    {
-        var count = 0;
-        var index = 0;
-
-        while (index < value.Length)
-        {
-            index = value.IndexOf(pattern, index, StringComparison.Ordinal);
-            if (index < 0)
-                return count;
-
-            count++;
-            index += pattern.Length;
         }
-
-        return count;
+        catch (Exception ex)
+        {
+            DebugLog($"Interprocess send threw {ex.GetType().Name}: {EscapeForLog(ex.Message)}");
+            DisposeMessaging();
+            return false;
+        }
     }
 
-    static int GetNextCompositionCaretOffset(string previousComposition, string nextComposition, int previousCaretOffset, bool backspaceKeyActive)
+    static void LogMessengerIdentityOnce()
+    {
+        if (_messengerIdentityLogged)
+            return;
+
+        _messengerIdentityLogged = true;
+        DebugLog($"Renderer IME sender: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\", queueName=\"{ImeInterprocessQueue.GetQueueName()}\"");
+    }
+
+    static void ClearComposition(DriverState state)
+    {
+        state.ImeComposition = string.Empty;
+        state.CompositionCaretOffset = -1;
+        state.PreviousHeldCaretKeys.Clear();
+    }
+
+    static int GetNextCompositionCaretOffset(string previousComposition, string nextComposition, int previousCaretOffset)
     {
         if (nextComposition.Length == 0)
             return -1;
 
-        if (previousComposition.Length == 0 || previousCaretOffset < 0 || previousCaretOffset == previousComposition.Length)
+        if (previousComposition.Length == 0 || previousCaretOffset < 0 || previousCaretOffset > previousComposition.Length)
             return nextComposition.Length;
 
-        var backspaceDeletionOffset = TryGetBackspaceDeletionOffset(previousComposition, nextComposition, previousCaretOffset, backspaceKeyActive);
-        if (backspaceDeletionOffset >= 0)
-            return backspaceDeletionOffset;
-
-        var caretInsertionOffset = TryGetCaretInsertionOffset(previousComposition, nextComposition, previousCaretOffset);
-        if (caretInsertionOffset >= 0)
-            return caretInsertionOffset;
+        var insertedLength = nextComposition.Length - previousComposition.Length;
+        if (insertedLength > 0)
+        {
+            var prefix = previousComposition.Substring(0, previousCaretOffset);
+            var suffix = previousComposition.Substring(previousCaretOffset);
+            if (nextComposition.StartsWith(prefix, StringComparison.Ordinal)
+                && nextComposition.EndsWith(suffix, StringComparison.Ordinal))
+            {
+                return Math.Min(previousCaretOffset + insertedLength, nextComposition.Length);
+            }
+        }
 
         var prefixLength = GetSharedPrefixLength(previousComposition, nextComposition);
         var suffixLength = GetSharedSuffixLength(previousComposition, nextComposition, prefixLength);
@@ -376,45 +331,9 @@ static class KeyboardDriverIMEPatch
         return Math.Max(0, Math.Min(previousCaretOffset + deltaLength, nextComposition.Length));
     }
 
-    static int TryGetBackspaceDeletionOffset(string previousComposition, string nextComposition, int previousCaretOffset, bool backspaceKeyActive)
-    {
-        if (!backspaceKeyActive)
-            return -1;
-
-        var removedLength = previousComposition.Length - nextComposition.Length;
-
-        if (removedLength <= 0 || previousCaretOffset < removedLength)
-            return -1;
-
-        var removedStart = previousCaretOffset - removedLength;
-        var expected = previousComposition.Remove(removedStart, removedLength);
-
-        if (!string.Equals(expected, nextComposition, StringComparison.Ordinal))
-            return -1;
-
-        return removedStart;
-    }
-
-    static int TryGetCaretInsertionOffset(string previousComposition, string nextComposition, int previousCaretOffset)
-    {
-        var insertedLength = nextComposition.Length - previousComposition.Length;
-
-        if (insertedLength <= 0)
-            return -1;
-
-        var prefix = previousComposition.Substring(0, previousCaretOffset);
-        var suffix = previousComposition.Substring(previousCaretOffset);
-
-        if (!nextComposition.StartsWith(prefix, StringComparison.Ordinal) || !nextComposition.EndsWith(suffix, StringComparison.Ordinal))
-            return -1;
-
-        return Math.Min(previousCaretOffset + insertedLength, nextComposition.Length);
-    }
-
     static int GetSharedPrefixLength(string first, string second)
     {
         var length = Math.Min(first.Length, second.Length);
-
         for (var i = 0; i < length; i++)
             if (first[i] != second[i])
                 return i;
@@ -425,7 +344,6 @@ static class KeyboardDriverIMEPatch
     static int GetSharedSuffixLength(string first, string second, int prefixLength)
     {
         var maxLength = Math.Min(first.Length, second.Length) - prefixLength;
-
         for (var i = 0; i < maxLength; i++)
             if (first[first.Length - 1 - i] != second[second.Length - 1 - i])
                 return i;
@@ -433,72 +351,13 @@ static class KeyboardDriverIMEPatch
         return maxLength;
     }
 
-    static void ClearPendingTypeDelta(object driver)
-    {
-        var typeDelta = GetTypeDelta(driver);
+    static bool IsCaretKeyPressedThisFrame(RenderiteKey key, Keyboard keyboard) =>
+        GetCaretKeyControl(key, keyboard)?.wasPressedThisFrame == true;
 
-        if (typeDelta == null || typeDelta.Length == 0)
-            return;
+    static bool IsCaretKeyPressed(RenderiteKey key, Keyboard keyboard) =>
+        GetCaretKeyControl(key, keyboard)?.isPressed == true;
 
-        typeDelta.Length = 0;
-    }
-
-    static void ReplaceComposition(StringBuilder typeDelta, string previousComposition, string nextComposition)
-    {
-        for (var i = 0; i < previousComposition.Length; i++)
-            typeDelta.Append('\b');
-
-        typeDelta.Append(nextComposition);
-    }
-
-    public static void RemoveIMEEditingKeys(RenderiteKeyboardState state)
-    {
-        if (state.heldKeys == null)
-            return;
-
-        foreach (var key in ImeKeys.RendererEditingKeys)
-            state.heldKeys.Remove(key);
-    }
-
-    public static void SynchronizeCompositionCaret(object driver, Keyboard keyboard)
-    {
-        var driverState = GetState(driver);
-
-        if (driverState.ImeComposition.Length == 0)
-        {
-            driverState.PreviousHeldIMEEditingKeys.Clear();
-            return;
-        }
-
-        foreach (var key in ImeKeys.CaretKeys)
-        {
-            var isPressed = IsIMECaretKeyPressed(key, keyboard);
-            var wasPressedThisFrame = IsIMECaretKeyPressedThisFrame(key, keyboard);
-            var wasHeld = driverState.PreviousHeldIMEEditingKeys.Contains(key);
-
-            if ((wasPressedThisFrame || isPressed) && !wasHeld)
-                MoveCompositionCaret(driver, driverState, key);
-
-            if (isPressed)
-                driverState.PreviousHeldIMEEditingKeys.Add(key);
-            else
-                driverState.PreviousHeldIMEEditingKeys.Remove(key);
-        }
-    }
-
-    static bool IsIMECaretKeyPressedThisFrame(RenderiteKey key, Keyboard keyboard)
-    {
-        var control = GetIMECaretKeyControl(key, keyboard);
-        return control?.wasPressedThisFrame == true;
-    }
-
-    static bool IsIMECaretKeyPressed(RenderiteKey key, Keyboard keyboard)
-    {
-        var control = GetIMECaretKeyControl(key, keyboard);
-        return control?.isPressed == true;
-    }
-
-    static KeyControl? GetIMECaretKeyControl(RenderiteKey key, Keyboard keyboard)
+    static KeyControl? GetCaretKeyControl(RenderiteKey key, Keyboard keyboard)
     {
         switch (key)
         {
@@ -510,124 +369,19 @@ static class KeyboardDriverIMEPatch
                 return keyboard.homeKey;
             case RenderiteKey.End:
                 return keyboard.endKey;
-            case RenderiteKey.Backspace:
-                return keyboard.backspaceKey;
-            case RenderiteKey.Delete:
-                return keyboard.deleteKey;
             default:
                 return null;
         }
-    }
-
-    static void MoveCompositionCaret(object driver, DriverState state, RenderiteKey key)
-    {
-        var previousOffset = state.CompositionCaretOffset < 0 ? state.ImeComposition.Length : state.CompositionCaretOffset;
-        var nextOffset = previousOffset;
-
-        switch (key)
-        {
-            case RenderiteKey.LeftArrow:
-            case RenderiteKey.Backspace:
-                nextOffset--;
-                break;
-            case RenderiteKey.RightArrow:
-            case RenderiteKey.Delete:
-                nextOffset++;
-                break;
-            case RenderiteKey.Home:
-                nextOffset = 0;
-                break;
-            case RenderiteKey.End:
-                nextOffset = state.ImeComposition.Length;
-                break;
-        }
-
-        nextOffset = Math.Max(0, Math.Min(nextOffset, state.ImeComposition.Length));
-
-        if (nextOffset == previousOffset)
-        {
-            DebugLog($"MoveCompositionCaret no-op: key={key}, composition=\"{EscapeForLog(state.ImeComposition)}\", offset={previousOffset}");
-            return;
-        }
-
-        state.CompositionCaretOffset = nextOffset;
-        DebugLog($"MoveCompositionCaret send: key={key}, composition=\"{EscapeForLog(state.ImeComposition)}\", previousOffset={previousOffset}, nextOffset={nextOffset}");
-        if (!TrySendComposition(state.ImeComposition, string.Empty, state.CompositionCaretOffset, ImeEditAction.None))
-            DebugLog("MoveCompositionCaret send failed.");
-    }
-
-    static bool TrySendComposition(string composition, string committedText, int caretOffset, ImeEditAction editAction = ImeEditAction.None)
-    {
-        try
-        {
-            InitializeMessaging();
-            _messenger!.SendObject(ImeInterprocessChannel.MessageId, new ImeInterprocessMessage
-            {
-                Composition = composition,
-                CommittedText = committedText,
-                CaretOffset = caretOffset,
-                EditAction = editAction
-            });
-            return true;
-        }
-        catch (Exception ex)
-        {
-            DebugLog($"InterprocessLib send threw {ex.GetType().Name}: {EscapeForLog(ex.Message)}");
-            DisposeMessaging();
-            return false;
-        }
-    }
-
-    public static void TrimTypeDelta(object driver, int length)
-    {
-        if (length < 0)
-            return;
-
-        var typeDelta = GetTypeDelta(driver);
-
-        if (typeDelta == null || typeDelta.Length <= length)
-            return;
-
-        typeDelta.Length = length;
     }
 
     public sealed class DriverState
     {
         public string ImeComposition = string.Empty;
         public int CompositionCaretOffset = -1;
-        public int LastUpdateTypeDeltaLength = -1;
-        public long SuppressEmptyCompositionEndUntilTimestamp;
+        public int SuppressTypeDeltaUpdates;
         public bool KeyboardInputActive;
-        public bool IgnoreNextEmptyCompositionCommit;
         public Action<IMECompositionString>? CompositionHandler;
-        public readonly HashSet<RenderiteKey> PreviousHeldIMEEditingKeys = new();
-    }
-
-    static string TakeTypeDeltaSuffix(object driver, int length)
-    {
-        if (length < 0)
-            return string.Empty;
-
-        var typeDelta = GetTypeDelta(driver);
-
-        if (typeDelta == null || typeDelta.Length <= length)
-            return string.Empty;
-
-        var suffix = typeDelta.ToString(length, typeDelta.Length - length);
-        typeDelta.Length = length;
-        return suffix;
-    }
-
-    static string TakeFullTypeDelta(object driver)
-    {
-        var typeDelta = GetTypeDelta(driver);
-
-        if (typeDelta == null || typeDelta.Length == 0)
-            return string.Empty;
-
-        var value = typeDelta.ToString();
-        typeDelta.Length = 0;
-        return value;
+        public readonly HashSet<RenderiteKey> PreviousHeldCaretKeys = new();
     }
 
     static string EscapeForLog(string value) =>

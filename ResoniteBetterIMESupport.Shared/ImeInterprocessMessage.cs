@@ -9,41 +9,37 @@ internal static class ImeInterprocessChannel
     public const string MessageId = "ImeComposition";
 }
 
-internal enum ImeEditAction
+internal enum ImeMessageKind
 {
-    None = 0,
-    Backspace = 1,
-    Delete = 2
+    UpdateComposition = 0,
+    CommitComposition = 1,
+    CancelComposition = 2
 }
 
 internal sealed class ImeInterprocessMessage : IMemoryPackable
 {
+    public ImeMessageKind Kind = ImeMessageKind.UpdateComposition;
     public string Composition = string.Empty;
-    public string CommittedText = string.Empty;
     public int CaretOffset = -1;
-    public ImeEditAction EditAction = ImeEditAction.None;
 
     public void Pack(ref MemoryPacker packer)
     {
+        packer.Write((int)Kind);
         packer.Write(Composition);
-        packer.Write(CommittedText);
         packer.Write(CaretOffset);
-        packer.Write((int)EditAction);
     }
 
     public void Unpack(ref MemoryUnpacker unpacker)
     {
+        var kind = 0;
+        unpacker.Read(ref kind);
+        Kind = Enum.IsDefined(typeof(ImeMessageKind), kind)
+            ? (ImeMessageKind)kind
+            : ImeMessageKind.UpdateComposition;
         unpacker.Read(ref Composition);
-        unpacker.Read(ref CommittedText);
         unpacker.Read(ref CaretOffset);
-
-        var editAction = 0;
-        unpacker.Read(ref editAction);
-        EditAction = Enum.IsDefined(typeof(ImeEditAction), editAction)
-            ? (ImeEditAction)editAction
-            : ImeEditAction.None;
     }
 
     public override string ToString() =>
-        $"ImeInterprocessMessage:CompositionLength={Composition.Length},CommittedLength={CommittedText.Length},CaretOffset={CaretOffset},EditAction={EditAction}";
+        $"ImeInterprocessMessage:Kind={Kind},CompositionLength={Composition.Length},CaretOffset={CaretOffset}";
 }

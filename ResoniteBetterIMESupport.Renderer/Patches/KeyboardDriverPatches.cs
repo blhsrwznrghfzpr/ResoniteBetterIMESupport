@@ -21,18 +21,20 @@ static class KeyboardDriverUpdateStatePatch
     {
         var typeDelta = KeyboardDriverIMEPatch.GetTypeDelta(__instance);
         __state = typeDelta?.Length ?? -1;
-        KeyboardDriverIMEPatch.GetState(__instance).LastUpdateTypeDeltaLength = __state;
     }
 
     static void Postfix(object __instance, KeyboardState state, int __state)
     {
-        if (!KeyboardDriverIMEPatch.HasComposition(__instance))
-            return;
-
-        if (__state >= 0)
+        if (KeyboardDriverIMEPatch.ShouldSuppressTypeDelta(__instance) && __state >= 0)
+        {
+            KeyboardDriverIMEPatch.LogSuppressedTypeDelta(__instance, __state);
             KeyboardDriverIMEPatch.TrimTypeDelta(__instance, __state);
+        }
 
-        KeyboardDriverIMEPatch.RemoveIMEEditingKeys(state);
+        if (KeyboardDriverIMEPatch.HasComposition(__instance))
+            KeyboardDriverIMEPatch.RemoveIMEEditingKeys(state);
+
+        KeyboardDriverIMEPatch.OnUpdateStateFinished(__instance);
     }
 }
 
