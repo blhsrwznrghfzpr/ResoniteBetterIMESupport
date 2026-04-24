@@ -19,13 +19,12 @@ static class KeyboardDriverUpdateStatePatch
 
     static void Prefix(object __instance, out int __state)
     {
-        var typeDelta = KeyboardDriverIMEPatch.GetTypeDelta(__instance);
-        __state = typeDelta?.Length ?? -1;
+        __state = KeyboardDriverIMEPatch.OnUpdateStateStarting(__instance);
     }
 
     static void Postfix(object __instance, KeyboardState state, int __state)
     {
-        KeyboardDriverIMEPatch.OnUpdateStateFinished(__instance);
+        KeyboardDriverIMEPatch.OnUpdateStateFinished(__instance, __state);
 
         if (KeyboardDriverIMEPatch.ShouldSuppressTypeDelta(__instance) && __state >= 0)
         {

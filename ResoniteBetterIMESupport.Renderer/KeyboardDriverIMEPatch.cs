@@ -215,12 +215,20 @@ static class KeyboardDriverIMEPatch
         if (compositionText.Length == 0)
             return;
 
-        FlushPendingImeFrame(driver);
+        FlushPendingImeFrame(driver, state.LastUpdatePreviousTypeDeltaLength);
     }
 
-    public static void OnUpdateStateFinished(object driver)
+    public static int OnUpdateStateStarting(object driver)
     {
-        FlushPendingImeFrame(driver);
+        var typeDelta = GetTypeDelta(driver);
+        var length = typeDelta?.Length ?? -1;
+        GetState(driver).LastUpdatePreviousTypeDeltaLength = length;
+        return length;
+    }
+
+    public static void OnUpdateStateFinished(object driver, int previousTypeDeltaLength)
+    {
+        FlushPendingImeFrame(driver, previousTypeDeltaLength);
     }
 
     public static void SynchronizeCompositionCaret(object driver, Keyboard keyboard)
@@ -282,14 +290,14 @@ static class KeyboardDriverIMEPatch
             DebugLog("Caret move send failed.");
     }
 
-    static void FlushPendingImeFrame(object driver)
+    static void FlushPendingImeFrame(object driver, int previousTypeDeltaLength)
     {
         var state = GetState(driver);
         if (!state.HasPendingCompositionChange)
             return;
 
         var typeDelta = GetTypeDelta(driver);
-        var committedText = typeDelta == null ? string.Empty : ExtractCommittedText(typeDelta.ToString());
+        var committedText = ExtractCommittedTextDelta(typeDelta, previousTypeDeltaLength);
         var nextComposition = state.PendingComposition;
         var nextCaretOffset = state.PendingCompositionCaretOffset;
         var kind = nextComposition.Length == 0 ? ImeMessageKind.CommitComposition : ImeMessageKind.UpdateComposition;
@@ -386,6 +394,14 @@ static class KeyboardDriverIMEPatch
         state.HasPendingCompositionChange = false;
         state.PendingImplicitCommittedText = string.Empty;
         state.AwaitingImplicitCommitFollowup = false;
+    }
+
+    static string ExtractCommittedTextDelta(StringBuilder? typeDelta, int previousTypeDeltaLength)
+    {
+        if (typeDelta == null || previousTypeDeltaLength < 0 || typeDelta.Length <= previousTypeDeltaLength)
+            return string.Empty;
+
+        return ExtractCommittedText(typeDelta.ToString(previousTypeDeltaLength, typeDelta.Length - previousTypeDeltaLength));
     }
 
     static string ExtractCommittedText(string typeDelta)
@@ -519,6 +535,7 @@ static class KeyboardDriverIMEPatch
         public string PendingSuppressedCommittedText = string.Empty;
         public string PendingImplicitCommittedText = string.Empty;
         public bool AwaitingImplicitCommitFollowup;
+        public int LastUpdatePreviousTypeDeltaLength = -1;
         public readonly HashSet<RenderiteKey> PreviousHeldCaretKeys = new();
     }
 
