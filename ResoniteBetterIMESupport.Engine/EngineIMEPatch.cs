@@ -17,6 +17,7 @@ static class EngineIMEPatch
     static bool _stringChanged;
     static bool _isComposing;
     static string _compositionText = string.Empty;
+    static string _discardedCompositionText = string.Empty;
     static int _compositionStart = -1;
     static int _compositionCaretOffset = -1;
     public static bool IsTypingUnsettled => HasActiveComposition;
@@ -61,6 +62,19 @@ static class EngineIMEPatch
     public static void ClearEditingText()
     {
         DebugLog($"ClearEditingText before: {DebugState}");
+
+        if (_editingText != null && HasCompositionRange)
+        {
+            _discardedCompositionText = _compositionText;
+            HasSelection = false;
+            MarkTextChangeDirty();
+            DebugLog($"ClearEditingText cleared active composition state on focus loss: retained=\"{EscapeForLog(_discardedCompositionText)}\"");
+        }
+        else
+        {
+            _discardedCompositionText = string.Empty;
+        }
+
         _editingText = null;
         _stringChanged = false;
         _isComposing = false;
@@ -141,6 +155,8 @@ static class EngineIMEPatch
         if (_editingText == null)
             return;
 
+        committedText = FilterDiscardedFocusLossCommit(committedText);
+
         if (committedText.Length > 0)
             CommitComposition(committedText);
 
@@ -179,6 +195,8 @@ static class EngineIMEPatch
     {
         if (_editingText == null)
             return;
+
+        committedText = FilterDiscardedFocusLossCommit(committedText);
 
         if (committedText.Length > 0 && (!HasCompositionRange || !string.Equals(committedText, _compositionText, StringComparison.Ordinal)))
         {
@@ -294,6 +312,25 @@ static class EngineIMEPatch
         var trimmedTypeDelta = typeDelta.Substring(committedText.Length);
         _setTypeDeltaMethod?.Invoke(inputInterface, new object?[] { trimmedTypeDelta });
         DebugLog($"Suppressed engine TypeDelta prefix after IME commit: removedLength={committedText.Length}, remainingLength={trimmedTypeDelta.Length}");
+    }
+
+    static string FilterDiscardedFocusLossCommit(string committedText)
+    {
+        if (committedText.Length == 0)
+            return committedText;
+
+        if (_discardedCompositionText.Length == 0)
+            return committedText;
+
+        if (!string.Equals(committedText, _discardedCompositionText, StringComparison.Ordinal))
+        {
+            _discardedCompositionText = string.Empty;
+            return committedText;
+        }
+
+        DebugLog($"Ignored stale committed text after focus loss: discarded=\"{EscapeForLog(_discardedCompositionText)}\"");
+        _discardedCompositionText = string.Empty;
+        return string.Empty;
     }
 
     static bool HasSelection

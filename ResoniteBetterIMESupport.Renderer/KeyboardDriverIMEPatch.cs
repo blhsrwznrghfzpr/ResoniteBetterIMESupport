@@ -146,7 +146,15 @@ static class KeyboardDriverIMEPatch
         state.KeyboardInputActive = keyboardInputActive;
 
         if (keyboardInputActive)
+        {
+            if (!wasKeyboardInputActive)
+            {
+                DebugLog("Keyboard input became active. Reinitializing IME state.");
+                ClearComposition(state);
+            }
+
             return;
+        }
 
         if (!wasKeyboardInputActive || state.ImeComposition.Length == 0)
         {
