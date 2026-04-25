@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <BepisLoaderCorePath>$(BepisLoaderProfilePath)\BepInEx\core</BepisLoaderCorePath>
-    <PluginTargetDir>$(BepisLoaderProfilePath)\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport</PluginTargetDir>
+    <PluginTargetDir>$(BepisLoaderProfilePath)\BepInEx\plugins\$(ThunderstorePackageId)\$(ThunderstorePackageId)</PluginTargetDir>
     <RestoreAdditionalProjectSources>
       https://nuget-modding.resonite.net/v3/index.json;
     </RestoreAdditionalProjectSources>

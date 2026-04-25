@@ -13,6 +13,7 @@
     <GamePath Condition="'$(GamePath)'=='' And Exists('$(MSBuildProgramFiles32)\Steam\steamapps\common\Resonite')">$(MSBuildProgramFiles32)\Steam\steamapps\common\Resonite</GamePath>
     <GamePath Condition="'$(GamePath)'=='' And Exists('$(HOME)/.steam/steam/steamapps/common/Resonite')">$(HOME)/.steam/steam/steamapps/common/Resonite</GamePath>
 
-    <BepisLoaderProfilePath Condition="'$(BepisLoaderProfilePath)'==''">$(APPDATA)\com.kesomannen.gale\resonite\profiles\develop</BepisLoaderProfilePath>
+    <BepisLoaderProfilePath Condition="'$(BepisLoaderProfilePath)'==''">$(APPDATA)\com.kesomannen.gale\resonite\profiles\Default</BepisLoaderProfilePath>
+    <ThunderstorePackageId>blhsrwznrghfzpr-ResoniteBetterIMESupport</ThunderstorePackageId>
   </PropertyGroup>
 </Project>

@@ -44,10 +44,13 @@ Default development assumptions live in `Directory.Build.props`:
 - `GamePath`: `%LOCALAPPDATA%\RESO Launcher\profiles\01bepis\Game`, with common Steam paths as fallback.
 - `BepisLoaderProfilePath`: `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default`.
 
-Installed DLL layout must remain:
+Thunderstore package-internal DLL layout must remain:
 
 - Engine: `BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Engine.dll`
 - Renderer: `Renderer/BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Renderer.dll`
+- `CopyToPlugins=true` targets Gale's installed package payload folder:
+  - Engine: `BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Engine.dll`
+  - Renderer: `Renderer/BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Renderer.dll`
 
 If copy-to-profile fails, check whether Resonite is still running and locking the engine DLL.
 

@@ -43,9 +43,9 @@ Download the latest release ZIP from the [Releases](https://github.com/blhsrwznr
 For the Gale default profile, the files should be placed like this:
 
 - Engine plugin:
-  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport\ResoniteBetterIMESupport.Engine.dll`
+  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport\blhsrwznrghfzpr-ResoniteBetterIMESupport\ResoniteBetterIMESupport.Engine.dll`
 - Renderer plugin:
-  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport\ResoniteBetterIMESupport.Renderer.dll`
+  - `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport\blhsrwznrghfzpr-ResoniteBetterIMESupport\ResoniteBetterIMESupport.Renderer.dll`
 
 After installation, restart Resonite.
 
@@ -81,8 +81,8 @@ dotnet build ResoniteBetterIMESupport.sln -p:CopyToPlugins=true
 
 This copies:
 
-- `ResoniteBetterIMESupport.Renderer.dll` to `$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport`
-- `ResoniteBetterIMESupport.Engine.dll` to `$(BepisLoaderProfilePath)\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport`
+- `ResoniteBetterIMESupport.Renderer.dll` to `$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport\blhsrwznrghfzpr-ResoniteBetterIMESupport`
+- `ResoniteBetterIMESupport.Engine.dll` to `$(BepisLoaderProfilePath)\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport\blhsrwznrghfzpr-ResoniteBetterIMESupport`
 
 You can override paths when building:
 
