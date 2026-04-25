@@ -17,21 +17,8 @@ static class KeyboardDriverUpdateStatePatch
 {
     static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "UpdateState");
 
-    static void Prefix(object __instance, out int __state)
+    static void Postfix(object __instance, KeyboardState state)
     {
-        __state = KeyboardDriverIMEPatch.OnUpdateStateStarting(__instance);
-    }
-
-    static void Postfix(object __instance, KeyboardState state, int __state)
-    {
-        KeyboardDriverIMEPatch.OnUpdateStateFinished(__instance, __state);
-
-        if (KeyboardDriverIMEPatch.ShouldSuppressTypeDelta(__instance) && __state >= 0)
-        {
-            KeyboardDriverIMEPatch.LogSuppressedTypeDelta(__instance, __state);
-            KeyboardDriverIMEPatch.TrimTypeDelta(__instance, __state);
-        }
-
         if (KeyboardDriverIMEPatch.HasComposition(__instance))
             KeyboardDriverIMEPatch.RemoveIMEEditingKeys(state);
     }

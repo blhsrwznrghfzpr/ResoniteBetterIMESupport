@@ -5,7 +5,6 @@ using HarmonyLib;
 using InterprocessLib;
 using Renderite.Shared;
 using ResoniteBetterIMESupport.Shared;
-using System.Reflection;
 
 namespace ResoniteBetterIMESupport.Engine;
 
@@ -13,13 +12,10 @@ static class EngineIMEPatch
 {
     static IText? _editingText;
     static Messenger? _messenger;
-    static readonly MethodInfo? _setTypeDeltaMethod = AccessTools.PropertySetter(typeof(InputInterface), nameof(InputInterface.TypeDelta));
     static bool _stringChanged;
     static bool _isComposing;
     static string _compositionText = string.Empty;
-    static string _discardedCompositionText = string.Empty;
     static int _compositionStart = -1;
-    static int _compositionCaretOffset = -1;
     public static bool IsTypingUnsettled => HasActiveComposition;
 
     static bool HasActiveComposition => _isComposing && HasCompositionRange;
@@ -54,7 +50,6 @@ static class EngineIMEPatch
         _isComposing = false;
         _compositionText = string.Empty;
         _compositionStart = -1;
-        _compositionCaretOffset = -1;
         var textValue = text.Text ?? string.Empty;
         DebugLog($"SetEditingText: textLength={textValue.Length}, caret={text.CaretPosition}, selectionStart={text.SelectionStart}");
     }
@@ -65,14 +60,9 @@ static class EngineIMEPatch
 
         if (_editingText != null && HasCompositionRange)
         {
-            _discardedCompositionText = _compositionText;
             HasSelection = false;
             MarkTextChangeDirty();
-            DebugLog($"ClearEditingText cleared active composition state on focus loss: retained=\"{EscapeForLog(_discardedCompositionText)}\"");
-        }
-        else
-        {
-            _discardedCompositionText = string.Empty;
+            DebugLog($"ClearEditingText cleared active composition state on focus loss: retained=\"{EscapeForLog(_compositionText)}\"");
         }
 
         _editingText = null;
@@ -80,7 +70,6 @@ static class EngineIMEPatch
         _isComposing = false;
         _compositionText = string.Empty;
         _compositionStart = -1;
-        _compositionCaretOffset = -1;
     }
 
     public static bool ConsumeStringChanged()
@@ -112,7 +101,7 @@ static class EngineIMEPatch
         if (visuals.selectionStart != _compositionStart || visuals.caretPosition != compositionEnd)
             return false;
 
-        caretPosition = _compositionStart + ClampCompositionCaretOffset(_compositionCaretOffset, _compositionText.Length);
+        caretPosition = compositionEnd;
         caretColor = visuals.caretColor;
         return true;
     }
@@ -136,115 +125,36 @@ static class EngineIMEPatch
 
         DebugLog($"ApplyMessage begin: {message}, {DebugState}");
 
-        switch (message.Kind)
-        {
-            case ImeMessageKind.UpdateComposition:
-                ApplyComposition(message.Composition, message.CommittedText, message.CaretOffset);
-                break;
-            case ImeMessageKind.CommitComposition:
-                CommitComposition(message.CommittedText);
-                break;
-            case ImeMessageKind.CancelComposition:
-                CancelComposition();
-                break;
-        }
+        ApplyComposition(message.Composition);
     }
 
-    static void ApplyComposition(string composition, string committedText, int caretOffset)
+    static void ApplyComposition(string composition)
     {
         if (_editingText == null)
             return;
 
-        committedText = FilterDiscardedFocusLossCommit(committedText);
-
-        if (committedText.Length > 0)
-            CommitComposition(committedText);
+        if (HasSelection)
+            DeleteSelection();
 
         if (composition.Length == 0)
         {
+            HasSelection = false;
+            _isComposing = false;
+            _compositionText = string.Empty;
+            _compositionStart = -1;
+            DebugLog($"ApplyComposition cleared composition: {DebugState}");
             return;
         }
 
-        if (HasCompositionRange && composition == _compositionText)
-        {
-            _compositionCaretOffset = ClampCompositionCaretOffset(caretOffset, composition.Length);
-            SetCompositionVisuals();
-            MarkTextChangeDirty();
-            _isComposing = true;
-            DebugLog($"ApplyComposition caret-only update: {DebugState}");
-            return;
-        }
-
-        if (HasCompositionRange)
-            DeleteCompositionRange();
-        else if (HasSelection)
-            DeleteSelection();
-
+        SelectionStart = CaretPosition;
         _compositionStart = CaretPosition;
         InsertText(composition);
         _compositionText = composition;
-        _compositionCaretOffset = ClampCompositionCaretOffset(caretOffset, composition.Length);
         SetCompositionVisuals();
         MarkTextChangeDirty();
         _stringChanged = true;
         _isComposing = true;
         DebugLog($"ApplyComposition replaced composition: {DebugState}");
-    }
-
-    static void CommitComposition(string committedText = "")
-    {
-        if (_editingText == null)
-            return;
-
-        committedText = FilterDiscardedFocusLossCommit(committedText);
-
-        if (committedText.Length > 0 && (!HasCompositionRange || !string.Equals(committedText, _compositionText, StringComparison.Ordinal)))
-        {
-            if (HasCompositionRange)
-                DeleteCompositionRange();
-            else if (HasSelection)
-                DeleteSelection();
-
-            InsertText(committedText);
-            HasSelection = false;
-            MarkTextChangeDirty();
-            _stringChanged = true;
-        }
-        else if (HasCompositionRange)
-        {
-            CaretPosition = _compositionStart + _compositionText.Length;
-            HasSelection = false;
-            MarkTextChangeDirty();
-        }
-
-        if (committedText.Length > 0)
-            SuppressCommittedTypeDeltaPrefix(committedText);
-
-        _isComposing = false;
-        _compositionText = string.Empty;
-        _compositionStart = -1;
-        _compositionCaretOffset = -1;
-        DebugLog($"CommitComposition: {DebugState}");
-    }
-
-    static void CancelComposition()
-    {
-        if (_editingText == null)
-            return;
-
-        if (HasCompositionRange)
-        {
-            DeleteCompositionRange();
-            _stringChanged = true;
-        }
-
-        HasSelection = false;
-        MarkTextChangeDirty();
-        _isComposing = false;
-        _compositionText = string.Empty;
-        _compositionStart = -1;
-        _compositionCaretOffset = -1;
-        DebugLog($"CancelComposition: {DebugState}");
     }
 
     static void SetCompositionVisuals()
@@ -275,16 +185,6 @@ static class EngineIMEPatch
         CaretPosition += value.Length;
     }
 
-    static void DeleteCompositionRange()
-    {
-        if (_editingText == null || !HasCompositionRange)
-            return;
-
-        _editingText.Text = _editingText.Text.Remove(_compositionStart, _compositionText.Length);
-        CaretPosition = _compositionStart;
-        HasSelection = false;
-    }
-
     static void DeleteSelection()
     {
         if (_editingText == null || SelectionLength == 0)
@@ -294,43 +194,6 @@ static class EngineIMEPatch
         _editingText.Text = _editingText.Text.Remove(start, SelectionLength);
         CaretPosition = start;
         HasSelection = false;
-    }
-
-    static void SuppressCommittedTypeDeltaPrefix(string committedText)
-    {
-        if (_editingText == null || committedText.Length == 0)
-            return;
-
-        var inputInterface = _editingText.World?.InputInterface;
-        if (inputInterface == null)
-            return;
-
-        var typeDelta = inputInterface.TypeDelta ?? string.Empty;
-        if (!typeDelta.StartsWith(committedText, StringComparison.Ordinal))
-            return;
-
-        var trimmedTypeDelta = typeDelta.Substring(committedText.Length);
-        _setTypeDeltaMethod?.Invoke(inputInterface, new object?[] { trimmedTypeDelta });
-        DebugLog($"Suppressed engine TypeDelta prefix after IME commit: removedLength={committedText.Length}, remainingLength={trimmedTypeDelta.Length}");
-    }
-
-    static string FilterDiscardedFocusLossCommit(string committedText)
-    {
-        if (committedText.Length == 0)
-            return committedText;
-
-        if (_discardedCompositionText.Length == 0)
-            return committedText;
-
-        if (!string.Equals(committedText, _discardedCompositionText, StringComparison.Ordinal))
-        {
-            _discardedCompositionText = string.Empty;
-            return committedText;
-        }
-
-        DebugLog($"Ignored stale committed text after focus loss: discarded=\"{EscapeForLog(_discardedCompositionText)}\"");
-        _discardedCompositionText = string.Empty;
-        return string.Empty;
     }
 
     static bool HasSelection
@@ -407,20 +270,12 @@ static class EngineIMEPatch
         }
     }
 
-    static int ClampCompositionCaretOffset(int caretOffset, int compositionLength)
-    {
-        if (caretOffset < 0)
-            return compositionLength;
-
-        return Math.Max(0, Math.Min(caretOffset, compositionLength));
-    }
-
     static string BuildDebugState()
     {
         if (_editingText == null)
             return "state={editingText=null}";
 
-        return $"state={{textLength={_editingText.Text.Length}, caret={CaretPosition}, selectionStart={SelectionStart}, selectionLength={SelectionLength}, compositionStart={_compositionStart}, compositionLength={_compositionText.Length}, compositionCaretOffset={_compositionCaretOffset}, composing={_isComposing}, hasCompositionRange={HasCompositionRange}, text=\"{EscapeForLog(_editingText.Text)}\", composition=\"{EscapeForLog(_compositionText)}\"}}";
+        return $"state={{textLength={_editingText.Text.Length}, caret={CaretPosition}, selectionStart={SelectionStart}, selectionLength={SelectionLength}, compositionStart={_compositionStart}, compositionLength={_compositionText.Length}, composing={_isComposing}, hasCompositionRange={HasCompositionRange}, text=\"{EscapeForLog(_editingText.Text)}\", composition=\"{EscapeForLog(_compositionText)}\"}}";
     }
 
     static string EscapeForLog(string value) =>

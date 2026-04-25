@@ -7,9 +7,8 @@ A BepInEx plugin for Resonite that improves IME composition handling for input m
 This mod keeps IME composition text synchronized while editing UIX text, including:
 
 - showing the IME composition caret at the correct position
-- moving the caret inside unconfirmed composition text
 - editing composition text with Delete/Backspace without letting Resonite delete the whole composition range
-- committing composition text through the normal IME flow
+- finalizing composition text when the IME reports an empty composition
 
 Related issue: [Yellow-Dog-Man/Resonite-Issues#745](https://github.com/Yellow-Dog-Man/Resonite-Issues/issues/745)
 
@@ -21,14 +20,14 @@ Resonite runs the Unity renderer and the main engine in separate processes, so t
   - Renderer-side plugin
   - Targets `net472`
   - Hooks Unity InputSystem IME composition events
-  - Sends composition text, committed text, and caret offsets to the engine plugin
+  - Sends every `OnIMECompositionChange` composition string to the engine plugin
 - `ResoniteBetterIMESupport.Engine/ResoniteBetterIMESupport.Engine.csproj`
   - Engine-side plugin
   - Targets `net10.0`
   - Patches FrooxEngine text editing and text rendering
-  - Applies IME composition to the active `IText`
-  - Draws the composition caret at the IME caret offset
-- `ResoniteBetterIMESupport.Shared/ImePipe.cs`
+  - Replaces the active `IText` composition range with each renderer composition update
+  - Displays composition through the active TextEditor selection/caret
+- `ResoniteBetterIMESupport.Shared/ImeInterprocessMessage.cs`
   - Shared named-pipe IPC layer used by both plugins
 - `Directory.Build.props`
   - Shared build metadata and default Resonite/BepisLoader paths
