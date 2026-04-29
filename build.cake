@@ -5,18 +5,18 @@ var target = Argument("target", "Default");
 var configuration = Argument("configuration", "Release");
 
 var packageVersion = XmlPeek(propsPath, "/Project/PropertyGroup/Version");
-var distDir = Directory("./dist");
+var packageDir = Directory("./build");
 
 Task("Clean")
     .Does(() =>
 {
-    if (DirectoryExists(distDir))
+    if (DirectoryExists(packageDir))
     {
-        CleanDirectory(distDir);
+        CleanDirectory(packageDir);
     }
     else
     {
-        CreateDirectory(distDir);
+        CreateDirectory(packageDir);
     }
 });
 

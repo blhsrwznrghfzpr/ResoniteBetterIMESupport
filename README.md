@@ -63,7 +63,7 @@ To confirm both sides loaded, check the logs:
 The project expects the Resonite game files and BepisLoader profile at these default paths:
 
 - `GamePath`: `%LOCALAPPDATA%\RESO Launcher\profiles\01bepis\Game`
-- `BepisLoaderProfilePath`: `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default`
+- `BepisLoaderProfilePath`: `%APPDATA%\com.kesomannen.gale\resonite\profiles\develop`
 
 `GamePath` is also auto-detected from common Steam install paths. You can set `ResonitePath` as a shorthand for `GamePath`.
 
@@ -73,7 +73,7 @@ Build both plugins:
 dotnet build ResoniteBetterIMESupport.sln
 ```
 
-Build and copy both plugins into the Gale default profile:
+Build and copy both plugins into the Gale development profile:
 
 ```powershell
 dotnet build ResoniteBetterIMESupport.sln -p:CopyToPlugins=true

@@ -22,7 +22,7 @@ Use PowerShell on Windows. The normal validation command is:
 dotnet build ResoniteBetterIMESupport.sln
 ```
 
-To copy a local build into the default Gale/BepisLoader profile:
+To copy a local build into the Gale development BepisLoader profile:
 
 ```powershell
 dotnet build ResoniteBetterIMESupport.sln -p:CopyToPlugins=true
@@ -35,22 +35,23 @@ dotnet build ResoniteBetterIMESupport.sln -p:GamePath="C:\Path\To\Game" -p:Bepis
 dotnet build ResoniteBetterIMESupport.sln -p:ResonitePath="C:\Path\To\Game"
 ```
 
-Release/package metadata is duplicated in `Directory.Build.props`, plugin constants, and `thunderstore.toml`; keep versions synchronized when changing releases. Thunderstore packaging expects Release binaries and uses `build.cake`/`tcli` with `thunderstore.toml`.
+Release/package metadata is duplicated in `Directory.Build.props`, `ResoniteBetterIMESupport.Engine/EnginePlugin.cs`, `ResoniteBetterIMESupport.Renderer/RendererPlugin.cs`, and `thunderstore.toml`; keep versions synchronized when changing releases. Thunderstore packaging expects Release binaries and uses `build.cake`/`tcli` with `thunderstore.toml`. The package output directory is `./build`.
 
 ## Runtime Paths
 
 Default development assumptions live in `Directory.Build.props`:
 
 - `GamePath`: `%LOCALAPPDATA%\RESO Launcher\profiles\01bepis\Game`, with common Steam paths as fallback.
-- `BepisLoaderProfilePath`: `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default`.
+- `BepisLoaderProfilePath`: `%APPDATA%\com.kesomannen.gale\resonite\profiles\develop`.
 
-Thunderstore package-internal DLL layout must remain:
+Keep development copy layout and Thunderstore package layout distinct:
 
-- Engine: `BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Engine.dll`
-- Renderer: `Renderer/BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Renderer.dll`
-- `CopyToPlugins=true` targets Gale's installed package payload folder:
-  - Engine: `BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Engine.dll`
-  - Renderer: `Renderer/BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Renderer.dll`
+- `CopyToPlugins=true` targets Gale's installed package payload folder under the development profile, with a double package-id directory:
+  - Engine: `%APPDATA%\com.kesomannen.gale\resonite\profiles\develop\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport\blhsrwznrghfzpr-ResoniteBetterIMESupport\ResoniteBetterIMESupport.Engine.dll`
+  - Renderer: `%APPDATA%\com.kesomannen.gale\resonite\profiles\develop\Renderer\BepInEx\plugins\blhsrwznrghfzpr-ResoniteBetterIMESupport\blhsrwznrghfzpr-ResoniteBetterIMESupport\ResoniteBetterIMESupport.Renderer.dll`
+- Thunderstore package-internal layout is configured in `thunderstore.toml` and must remain one package-id directory:
+  - Engine: `plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Engine.dll`
+  - Renderer: `Renderer/BepInEx/plugins/blhsrwznrghfzpr-ResoniteBetterIMESupport/ResoniteBetterIMESupport.Renderer.dll`
 
 If copy-to-profile fails, check whether Resonite is still running and locking the engine DLL.
 
@@ -87,8 +88,8 @@ If only build validation was possible, say so explicitly in the final response.
 
 At the end of every implementation task, run the replacement build before reporting completion. First enable debug logging in both installed BepInEx config files:
 
-- `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\BepInEx\config\dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Engine.cfg`
-- `%APPDATA%\com.kesomannen.gale\resonite\profiles\Default\Renderer\BepInEx\config\dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Renderer.cfg`
+- `%APPDATA%\com.kesomannen.gale\resonite\profiles\develop\BepInEx\config\dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Engine.cfg`
+- `%APPDATA%\com.kesomannen.gale\resonite\profiles\develop\Renderer\BepInEx\config\dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Renderer.cfg`
 
 Set `EnableDebugLogging = true` in both files, then run this Release copy build:
 
