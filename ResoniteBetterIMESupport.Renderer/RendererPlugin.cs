@@ -21,7 +21,6 @@ public sealed class RendererPlugin : BaseUnityPlugin
         Logger = base.Logger;
         _enableDebugLogging = Config.Bind("Debug", "EnableDebugLogging", false, "Enable verbose IME debug logging.");
 
-        LegacyPluginWarning.WarnIfLoaded(Logger);
         KeyboardDriverIMEPatch.InitializeMessaging();
         new Harmony(PluginGuid).PatchAll(Assembly.GetExecutingAssembly());
         Logger.LogInfo("ResoniteBetterIMESupport.Renderer loaded.");

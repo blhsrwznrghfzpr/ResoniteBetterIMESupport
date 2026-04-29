@@ -1,11 +1,9 @@
 using HarmonyLib;
 using InterprocessLib;
-using Renderite.Shared;
 using ResoniteBetterIMESupport.Shared;
 using System.Runtime.CompilerServices;
 using UnityEngine.InputSystem;
 using IMECompositionString = UnityEngine.InputSystem.LowLevel.IMECompositionString;
-using RenderiteKeyboardState = Renderite.Shared.KeyboardState;
 
 namespace ResoniteBetterIMESupport.Renderer;
 
@@ -53,31 +51,6 @@ static class KeyboardDriverIMEPatch
         InitializeMessaging();
         state.CompositionHandler = composition => OnIMECompositionChange(driver, composition);
         keyboard.onIMECompositionChange += state.CompositionHandler;
-    }
-
-    public static void Unsubscribe(object driver)
-    {
-        var state = GetState(driver);
-        if (state.CompositionHandler == null)
-            return;
-
-        var keyboard = Keyboard.current;
-        if (keyboard != null)
-            keyboard.onIMECompositionChange -= state.CompositionHandler;
-
-        state.CompositionHandler = null;
-        ClearComposition(state);
-    }
-
-    public static bool HasComposition(object driver) => GetState(driver).ImeComposition.Length > 0;
-
-    public static void RemoveIMEEditingKeys(RenderiteKeyboardState state)
-    {
-        if (state.heldKeys == null)
-            return;
-
-        foreach (var key in ImeKeys.RendererEditingKeys)
-            state.heldKeys.Remove(key);
     }
 
     public static void HandleKeyboardInputActive(object driver, bool keyboardInputActive)

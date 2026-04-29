@@ -44,7 +44,7 @@ static class InputInterfaceGetKeyRepeatPatch
         if (!__result || !EngineIMEPatch.ShouldSuppressTextEditorKey(key))
             return;
 
-        EngineIMEPatch.LogSuppressedTextEditorKey(key);
+        EngineIMEPatch.LogSuppressedTextEditorKey(key, nameof(InputInterface.GetKeyRepeat));
         __result = false;
     }
 }

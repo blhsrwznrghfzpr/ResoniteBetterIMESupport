@@ -13,18 +13,6 @@ static class KeyboardDriverStartPatch
 }
 
 [HarmonyPatch]
-static class KeyboardDriverUpdateStatePatch
-{
-    static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "UpdateState");
-
-    static void Postfix(object __instance, KeyboardState state)
-    {
-        if (KeyboardDriverIMEPatch.HasComposition(__instance))
-            KeyboardDriverIMEPatch.RemoveIMEEditingKeys(state);
-    }
-}
-
-[HarmonyPatch]
 static class KeyboardDriverHandleOutputStatePatch
 {
     static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "HandleOutputState");

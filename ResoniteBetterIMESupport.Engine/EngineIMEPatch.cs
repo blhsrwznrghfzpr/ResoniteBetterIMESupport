@@ -1,7 +1,5 @@
-using Elements.Assets;
 using Elements.Core;
 using FrooxEngine;
-using HarmonyLib;
 using InterprocessLib;
 using Renderite.Shared;
 using ResoniteBetterIMESupport.Shared;
@@ -13,12 +11,8 @@ static class EngineIMEPatch
     static IText? _editingText;
     static Messenger? _messenger;
     static bool _stringChanged;
-    static bool _isComposing;
-    static string _compositionText = string.Empty;
-    static int _compositionStart = -1;
-    public static bool IsTypingUnsettled => HasActiveComposition;
-
-    static bool HasActiveComposition => _isComposing && HasCompositionRange;
+    static bool _isTypingUnsettled;
+    public static bool IsTypingUnsettled => _isTypingUnsettled;
 
     public static string DebugState => BuildDebugState();
 
@@ -47,9 +41,7 @@ static class EngineIMEPatch
 
         _editingText = text;
         _stringChanged = false;
-        _isComposing = false;
-        _compositionText = string.Empty;
-        _compositionStart = -1;
+        _isTypingUnsettled = false;
         var textValue = text.Text ?? string.Empty;
         DebugLog($"SetEditingText: textLength={textValue.Length}, caret={text.CaretPosition}, selectionStart={text.SelectionStart}");
     }
@@ -58,18 +50,9 @@ static class EngineIMEPatch
     {
         DebugLog($"ClearEditingText before: {DebugState}");
 
-        if (_editingText != null && HasCompositionRange)
-        {
-            HasSelection = false;
-            MarkTextChangeDirty();
-            DebugLog($"ClearEditingText cleared active composition state on focus loss: retained=\"{EscapeForLog(_compositionText)}\"");
-        }
-
         _editingText = null;
         _stringChanged = false;
-        _isComposing = false;
-        _compositionText = string.Empty;
-        _compositionStart = -1;
+        _isTypingUnsettled = false;
     }
 
     public static bool ConsumeStringChanged()
@@ -82,28 +65,17 @@ static class EngineIMEPatch
     }
 
     public static bool ShouldSuppressTextEditorKey(Key key) =>
-        HasActiveComposition;
+        _isTypingUnsettled
+        && (key == Key.UpArrow
+            || key == Key.DownArrow
+            || key == Key.RightArrow
+            || key == Key.LeftArrow
+            || key == Key.Delete
+            || key == Key.Backspace);
 
-    public static void LogSuppressedTextEditorKey(Key key)
+    public static void LogSuppressedTextEditorKey(Key key, string source)
     {
-        DebugLog($"Suppressed standard key repeat while IME handled input is active: key={key}, {DebugState}");
-    }
-
-    public static bool TryGetCompositionCaretVisual(TextEditingVisuals visuals, out int caretPosition, out colorX caretColor)
-    {
-        caretPosition = -1;
-        caretColor = default;
-
-        if (!HasCompositionRange)
-            return false;
-
-        var compositionEnd = _compositionStart + _compositionText.Length;
-        if (visuals.selectionStart != _compositionStart || visuals.caretPosition != compositionEnd)
-            return false;
-
-        caretPosition = compositionEnd;
-        caretColor = visuals.caretColor;
-        return true;
+        DebugLog($"Suppressed TextEditor key from {source}: key={key}, {DebugState}");
     }
 
     static void OnMessage(ImeInterprocessMessage message)
@@ -139,39 +111,16 @@ static class EngineIMEPatch
         if (composition.Length == 0)
         {
             HasSelection = false;
-            _isComposing = false;
-            _compositionText = string.Empty;
-            _compositionStart = -1;
+            _isTypingUnsettled = false;
             DebugLog($"ApplyComposition cleared composition: {DebugState}");
             return;
         }
 
         SelectionStart = CaretPosition;
-        _compositionStart = CaretPosition;
         InsertText(composition);
-        _compositionText = composition;
-        SetCompositionVisuals();
-        MarkTextChangeDirty();
+        _isTypingUnsettled = true;
         _stringChanged = true;
-        _isComposing = true;
         DebugLog($"ApplyComposition replaced composition: {DebugState}");
-    }
-
-    static void SetCompositionVisuals()
-    {
-        if (!HasCompositionRange)
-            return;
-
-        SelectionStart = _compositionStart;
-        CaretPosition = _compositionStart + _compositionText.Length;
-    }
-
-    static void MarkTextChangeDirty()
-    {
-        if (_editingText == null)
-            return;
-
-        AccessTools.Method(_editingText.GetType(), "MarkChangeDirty")?.Invoke(_editingText, null);
     }
 
     static void InsertText(string value)
@@ -192,8 +141,8 @@ static class EngineIMEPatch
 
         var start = MathX.Min(SelectionStart, CaretPosition);
         _editingText.Text = _editingText.Text.Remove(start, SelectionLength);
-        CaretPosition = start;
         HasSelection = false;
+        CaretPosition = start;
     }
 
     static bool HasSelection
@@ -241,7 +190,7 @@ static class EngineIMEPatch
             if (_editingText == null)
                 return -1;
 
-            return MathX.Clamp(_editingText.SelectionStart, -1, _editingText.Text.Length + 1);
+            return MathX.Clamp(_editingText.SelectionStart, -1, _editingText.Text.Length);
         }
         set
         {
@@ -254,28 +203,12 @@ static class EngineIMEPatch
 
     static int SelectionLength => !HasSelection ? 0 : MathX.Abs(CaretPosition - SelectionStart);
 
-    static bool HasCompositionRange
-    {
-        get
-        {
-            if (_editingText == null
-                || _compositionStart < 0
-                || _compositionText.Length == 0
-                || _compositionStart + _compositionText.Length > _editingText.Text.Length)
-            {
-                return false;
-            }
-
-            return string.CompareOrdinal(_editingText.Text, _compositionStart, _compositionText, 0, _compositionText.Length) == 0;
-        }
-    }
-
     static string BuildDebugState()
     {
         if (_editingText == null)
             return "state={editingText=null}";
 
-        return $"state={{textLength={_editingText.Text.Length}, caret={CaretPosition}, selectionStart={SelectionStart}, selectionLength={SelectionLength}, compositionStart={_compositionStart}, compositionLength={_compositionText.Length}, composing={_isComposing}, hasCompositionRange={HasCompositionRange}, text=\"{EscapeForLog(_editingText.Text)}\", composition=\"{EscapeForLog(_compositionText)}\"}}";
+        return $"state={{textLength={_editingText.Text.Length}, caret={CaretPosition}, selectionStart={SelectionStart}, selectionLength={SelectionLength}, typingUnsettled={_isTypingUnsettled}, text=\"{EscapeForLog(_editingText.Text)}\"}}";
     }
 
     static string EscapeForLog(string value) =>

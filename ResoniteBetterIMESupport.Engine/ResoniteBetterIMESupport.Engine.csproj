@@ -11,7 +11,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeKeys.cs" Link="Shared\ImeKeys.cs" />
     <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeInterprocessMessage.cs" Link="Shared\ImeInterprocessMessage.cs" />
     <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeInterprocessQueue.cs" Link="Shared\ImeInterprocessQueue.cs" />
   </ItemGroup>

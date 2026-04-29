@@ -26,25 +26,31 @@ static class TextEditorEditCoroutinePatch
     {
         var codes = instructions.ToList();
         var getKeyRepeatMethod = AccessTools.Method(typeof(InputInterface), nameof(InputInterface.GetKeyRepeat));
-        var suppressedEditingKeys = new HashSet<int>(ImeKeys.TextEditorEditingKeys.Select(key => (int)key));
+        int[] arrowKeys =
+        {
+            (int)Key.UpArrow,
+            (int)Key.DownArrow,
+            (int)Key.RightArrow,
+            (int)Key.LeftArrow,
+        };
+
         for (var i = 0; i < codes.Count; i++)
         {
-            if (codes[i].opcode != OpCodes.Ldloc_3 || i + 1 >= codes.Count || codes[i + 1].opcode != OpCodes.Brfalse_S)
-                continue;
+            if (i + 1 < codes.Count
+                && codes[i].opcode == OpCodes.Ldloc_3
+                && codes[i + 1].opcode == OpCodes.Brfalse_S)
+            {
+                codes.Insert(i + 1, new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TextEditorEditCoroutinePatch), nameof(IsStringChanged))));
+                break;
+            }
 
-            codes.Insert(i + 1, new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TextEditorEditCoroutinePatch), nameof(IsStringChanged))));
-            break;
-        }
-
-        for (var i = 1; i < codes.Count; i++)
-        {
-            if (!codes[i].Calls(getKeyRepeatMethod) || codes[i - 1].opcode != OpCodes.Ldc_I4)
-                continue;
-
-            if (!suppressedEditingKeys.Contains((int)codes[i - 1].operand))
-                continue;
-
-            codes[i] = new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TextEditorEditCoroutinePatch), nameof(GetKeyRepeat)));
+            if (i > 0
+                && codes[i].Calls(getKeyRepeatMethod)
+                && codes[i - 1].opcode == OpCodes.Ldc_I4
+                && arrowKeys.Contains((int)codes[i - 1].operand))
+            {
+                codes[i] = new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TextEditorEditCoroutinePatch), nameof(GetKeyRepeat)));
+            }
         }
 
         return codes;
