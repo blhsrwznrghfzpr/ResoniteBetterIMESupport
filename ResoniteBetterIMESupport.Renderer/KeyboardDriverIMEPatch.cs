@@ -1,3 +1,4 @@
+using BepInEx.Configuration;
 using HarmonyLib;
 using InterprocessLib;
 using ResoniteBetterIMESupport.Shared;
@@ -24,8 +25,7 @@ static class KeyboardDriverIMEPatch
         if (_messenger != null)
             return;
 
-        var queueName = ImeInterprocessQueue.GetQueueName();
-        _messenger = new Messenger(ImeInterprocessChannel.OwnerId, false, queueName);
+        _messenger = new Messenger(ImeInterprocessChannel.OwnerId, false, ImeInterprocessQueue.GetQueueName());
         LogMessengerIdentityOnce();
     }
 
@@ -33,6 +33,13 @@ static class KeyboardDriverIMEPatch
     {
         _messenger?.Dispose();
         _messenger = null;
+    }
+
+    public static void SyncConfigEntry<T>(ConfigEntry<T> configEntry)
+        where T : unmanaged
+    {
+        InitializeMessaging();
+        _messenger!.SyncConfigEntry(configEntry);
     }
 
     public static void Subscribe(object driver)
@@ -146,7 +153,7 @@ static class KeyboardDriverIMEPatch
             return;
 
         _messengerIdentityLogged = true;
-        DebugLog($"Renderer IME sender: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\", queueName=\"{ImeInterprocessQueue.GetQueueName()}\"");
+        DebugLog($"Renderer IME sender: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\", queuePrefix=\"{ImeInterprocessQueue.GetQueuePrefix()}\", queueName=\"{ImeInterprocessQueue.GetQueueName()}\"");
     }
 
     static void ClearComposition(DriverState state)

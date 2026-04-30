@@ -4,6 +4,7 @@ using BepInEx.Configuration;
 using BepInEx.Logging;
 using BepInEx.NET.Common;
 using HarmonyLib;
+using ResoniteBetterIMESupport.Shared;
 using System.Reflection;
 
 namespace ResoniteBetterIMESupport.Engine;
@@ -21,7 +22,8 @@ public sealed class EnginePlugin : BasePlugin
     public override void Load()
     {
         Log = base.Log;
-        _enableDebugLogging = Config.Bind("Debug", "EnableDebugLogging", false, "Enable verbose IME debug logging.");
+        _enableDebugLogging = ImePluginConfig.BindEnableDebugLogging(Config);
+        Log.LogInfo($"IME IPC startup diagnostic: {ImeInterprocessQueue.BuildStartupDiagnostic()}");
         ResoniteHooks.OnEngineReady += OnEngineReady;
         AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
         new Harmony(PluginGuid).PatchAll(Assembly.GetExecutingAssembly());
@@ -32,6 +34,7 @@ public sealed class EnginePlugin : BasePlugin
     {
         Log.LogInfo("Resonite engine is ready. Starting IME bridge.");
         EngineIMEPatch.Start();
+        EngineIMEPatch.SyncConfigEntry(_enableDebugLogging, publishInitialValue: true);
     }
 
     internal static void LogDebugIme(string message)

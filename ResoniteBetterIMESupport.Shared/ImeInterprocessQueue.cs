@@ -5,23 +5,23 @@ namespace ResoniteBetterIMESupport.Shared;
 
 internal static class ImeInterprocessQueue
 {
-    public static string GetQueueName()
+    const string FallbackPrefix = "ResoniteBetterIMESupport.Fallback";
+
+    public static string GetQueuePrefix()
     {
-        if (TryGetArgumentValue("--bepinex-target", out var bepinexTarget) && !string.IsNullOrWhiteSpace(bepinexTarget))
-            return $"ResoniteBetterIMESupport.{HashForQueue(bepinexTarget)}-{ImeInterprocessChannel.OwnerId}";
-
         if (TryGetArgumentValue("-shmprefix", out var sharedMemoryPrefix) && !string.IsNullOrWhiteSpace(sharedMemoryPrefix))
-            return $"{sharedMemoryPrefix}-{ImeInterprocessChannel.OwnerId}";
+            return sharedMemoryPrefix;
 
-        if (TryGetArgumentValue("-QueueName", out var queueName) && !string.IsNullOrWhiteSpace(queueName))
-        {
-            var separatorIndex = queueName.IndexOf('_');
-            var queuePrefix = separatorIndex > 0 ? queueName.Substring(0, separatorIndex) : queueName;
-            return $"{queuePrefix}-{ImeInterprocessChannel.OwnerId}";
-        }
+        if (TryGetArgumentValue("--bepinex-target", out var bepinexTarget) && !string.IsNullOrWhiteSpace(bepinexTarget))
+            return $"ResoniteBetterIMESupport.{HashForQueue(bepinexTarget)}";
 
-        return $"ResoniteBetterIMESupport.Fallback-{ImeInterprocessChannel.OwnerId}";
+        return FallbackPrefix;
     }
+
+    public static string GetQueueName() => $"{GetQueuePrefix()}-{ImeInterprocessChannel.OwnerId}";
+
+    public static string BuildStartupDiagnostic() =>
+        $"bepinexTarget=\"{EscapeForLog(GetArgumentValueOrEmpty("--bepinex-target"))}\", shmprefix=\"{EscapeForLog(GetArgumentValueOrEmpty("-shmprefix"))}\", queuePrefix=\"{GetQueuePrefix()}\", queueName=\"{GetQueueName()}\"";
 
     static bool TryGetArgumentValue(string argumentName, out string value)
     {
@@ -40,6 +40,9 @@ internal static class ImeInterprocessQueue
         return false;
     }
 
+    static string GetArgumentValueOrEmpty(string argumentName) =>
+        TryGetArgumentValue(argumentName, out var value) ? value : string.Empty;
+
     static string HashForQueue(string value)
     {
         var normalizedValue = value.Trim().Replace('/', '\\').ToLowerInvariant();
@@ -54,4 +57,7 @@ internal static class ImeInterprocessQueue
             return builder.ToString();
         }
     }
+
+    static string EscapeForLog(string value) =>
+        value.Replace("\\", "\\\\").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");
 }
