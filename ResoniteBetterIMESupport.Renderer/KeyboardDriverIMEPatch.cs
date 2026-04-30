@@ -25,7 +25,7 @@ static class KeyboardDriverIMEPatch
         if (_messenger != null)
             return;
 
-        _messenger = new Messenger(ImeInterprocessChannel.OwnerId, false, ImeInterprocessQueue.GetQueueName());
+        _messenger = new Messenger(ImeInterprocessChannel.OwnerId, false, ImeInterprocessChannel.QueueName);
         LogMessengerIdentityOnce();
     }
 
@@ -153,7 +153,7 @@ static class KeyboardDriverIMEPatch
             return;
 
         _messengerIdentityLogged = true;
-        DebugLog($"Renderer IME sender: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\", queuePrefix=\"{ImeInterprocessQueue.GetQueuePrefix()}\", queueName=\"{ImeInterprocessQueue.GetQueueName()}\"");
+        DebugLog($"Renderer IME sender: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\", queueName=\"{ImeInterprocessChannel.QueueName}\"");
     }
 
     static void ClearComposition(DriverState state)

@@ -23,7 +23,6 @@ public sealed class EnginePlugin : BasePlugin
     {
         Log = base.Log;
         _enableDebugLogging = ImePluginConfig.BindEnableDebugLogging(Config);
-        Log.LogInfo($"IME IPC startup diagnostic: {ImeInterprocessQueue.BuildStartupDiagnostic()}");
         ResoniteHooks.OnEngineReady += OnEngineReady;
         AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
         new Harmony(PluginGuid).PatchAll(Assembly.GetExecutingAssembly());

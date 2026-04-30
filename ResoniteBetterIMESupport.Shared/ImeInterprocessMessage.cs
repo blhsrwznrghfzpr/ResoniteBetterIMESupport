@@ -6,6 +6,7 @@ namespace ResoniteBetterIMESupport.Shared;
 internal static class ImeInterprocessChannel
 {
     public const string OwnerId = "ResoniteBetterIMESupport";
+    public const string QueueName = "ResoniteBetterIMESupport.Ime";
     public const string MessageId = "ImeComposition";
 }
 

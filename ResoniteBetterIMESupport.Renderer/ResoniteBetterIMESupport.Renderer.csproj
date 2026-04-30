@@ -10,7 +10,6 @@
 
   <ItemGroup>
     <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeInterprocessMessage.cs" Link="Shared\ImeInterprocessMessage.cs" />
-    <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeInterprocessQueue.cs" Link="Shared\ImeInterprocessQueue.cs" />
     <Compile Include="..\ResoniteBetterIMESupport.Shared\ImePluginConfig.cs" Link="Shared\ImePluginConfig.cs" />
   </ItemGroup>
 

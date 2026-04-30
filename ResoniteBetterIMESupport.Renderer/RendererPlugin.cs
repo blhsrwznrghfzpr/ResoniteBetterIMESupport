@@ -21,7 +21,6 @@ public sealed class RendererPlugin : BaseUnityPlugin
     {
         Logger = base.Logger;
         _enableDebugLogging = ImePluginConfig.BindEnableDebugLogging(Config);
-        Logger.LogInfo($"IME IPC startup diagnostic: {ImeInterprocessQueue.BuildStartupDiagnostic()}");
 
         KeyboardDriverIMEPatch.InitializeMessaging();
         KeyboardDriverIMEPatch.SyncConfigEntry(_enableDebugLogging);
