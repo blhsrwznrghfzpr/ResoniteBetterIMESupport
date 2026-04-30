@@ -13,6 +13,14 @@ static class KeyboardDriverStartPatch
 }
 
 [HarmonyPatch]
+static class KeyboardDriverTextInputPatch
+{
+    static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "Current_onTextInput");
+
+    static bool Prefix(object __instance, char obj) => KeyboardDriverIMEPatch.ShouldAllowTextInput(__instance, obj);
+}
+
+[HarmonyPatch]
 static class KeyboardDriverHandleOutputStatePatch
 {
     static MethodBase TargetMethod() => AccessTools.Method(KeyboardDriverIMEPatch.KeyboardDriverType, "HandleOutputState");

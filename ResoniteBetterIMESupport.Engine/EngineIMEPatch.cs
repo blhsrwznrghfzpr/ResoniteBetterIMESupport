@@ -42,6 +42,9 @@ static class EngineIMEPatch
             return;
         }
 
+        if (_editingText != null && !ReferenceEquals(_editingText, text))
+            CommitVisibleComposition("SetEditingText switched target");
+
         _editingText = text;
         _stringChanged = false;
         _isTypingUnsettled = false;
@@ -53,6 +56,8 @@ static class EngineIMEPatch
     public static void ClearEditingText()
     {
         DebugLog($"ClearEditingText before: {DebugState}");
+
+        CommitVisibleComposition("ClearEditingText");
 
         _editingText = null;
         _stringChanged = false;
@@ -112,16 +117,7 @@ static class EngineIMEPatch
 
         if (hasCommittedResult && HasCompositionRange)
         {
-            DeleteCompositionRange();
-            _isTypingUnsettled = false;
-            if (composition.Length == 0)
-            {
-                HasSelection = false;
-                DebugLog($"ApplyComposition cleared composition after committed result: {DebugState}");
-                return;
-            }
-
-            DebugLog($"ApplyComposition deferred next composition after committed result: nextLength={composition.Length}, {DebugState}");
+            CommitVisibleComposition("ApplyComposition committed result");
             return;
         }
 
@@ -155,9 +151,10 @@ static class EngineIMEPatch
         if (_editingText == null || value.Length == 0)
             return;
 
-        _editingText.Text = _editingText.Text.Substring(0, CaretPosition)
+        var text = TextValue;
+        _editingText.Text = text.Substring(0, CaretPosition)
             + value
-            + _editingText.Text.Substring(CaretPosition, _editingText.Text.Length - CaretPosition);
+            + text.Substring(CaretPosition, text.Length - CaretPosition);
         CaretPosition += value.Length;
     }
 
@@ -167,7 +164,7 @@ static class EngineIMEPatch
             return;
 
         var start = MathX.Min(SelectionStart, CaretPosition);
-        _editingText.Text = _editingText.Text.Remove(start, SelectionLength);
+        _editingText.Text = TextValue.Remove(start, SelectionLength);
         HasSelection = false;
         CaretPosition = start;
     }
@@ -177,14 +174,29 @@ static class EngineIMEPatch
         if (_editingText == null || !HasCompositionRange)
             return;
 
-        var start = MathX.Clamp(_compositionStart, 0, _editingText.Text.Length);
-        var length = MathX.Min(_compositionLength, _editingText.Text.Length - start);
+        var text = TextValue;
+        var start = MathX.Clamp(_compositionStart, 0, text.Length);
+        var length = MathX.Min(_compositionLength, text.Length - start);
         if (length > 0)
-            _editingText.Text = _editingText.Text.Remove(start, length);
+            _editingText.Text = text.Remove(start, length);
 
         ClearCompositionRange();
         HasSelection = false;
         CaretPosition = start;
+    }
+
+    static void CommitVisibleComposition(string source)
+    {
+        if (!HasCompositionRange)
+            return;
+
+        var caretPosition = _compositionStart + _compositionLength;
+        ClearCompositionRange();
+        HasSelection = false;
+        CaretPosition = caretPosition;
+        _isTypingUnsettled = false;
+        _stringChanged = true;
+        DebugLog($"{source} committed visible composition: {DebugState}");
     }
 
     static int NormalizeCompositionCursor(int compositionCursor, int compositionLength) =>
@@ -223,7 +235,7 @@ static class EngineIMEPatch
 
         if (_editingText == null
             || !HasCompositionRange
-            || !string.Equals(_editingText.Text, text, StringComparison.Ordinal))
+            || !string.Equals(TextValue, text, StringComparison.Ordinal))
         {
             return false;
         }
@@ -238,7 +250,7 @@ static class EngineIMEPatch
         visualCaret = -1;
         if (_editingText == null
             || !HasCompositionRange
-            || !string.Equals(_editingText.Text, text, StringComparison.Ordinal))
+            || !string.Equals(TextValue, text, StringComparison.Ordinal))
         {
             return false;
         }
@@ -266,17 +278,18 @@ static class EngineIMEPatch
             if (_editingText == null)
                 return -1;
 
-            return MathX.Clamp(_editingText.CaretPosition, -1, _editingText.Text.Length + 1);
+            return MathX.Clamp(_editingText.CaretPosition, -1, TextValue.Length + 1);
         }
         set
         {
             if (_editingText == null)
                 return;
 
-            value = MathX.Clamp(value, 0, _editingText.Text.Length + 1);
+            var text = TextValue;
+            value = MathX.Clamp(value, 0, text.Length + 1);
             if (value > 0
-                && value < _editingText.Text.Length
-                && char.GetUnicodeCategory(_editingText.Text, value) == System.Globalization.UnicodeCategory.Surrogate)
+                && value < text.Length
+                && char.GetUnicodeCategory(text, value) == System.Globalization.UnicodeCategory.Surrogate)
             {
                 value += MathX.Sign(value - _editingText.CaretPosition);
             }
@@ -292,25 +305,28 @@ static class EngineIMEPatch
             if (_editingText == null)
                 return -1;
 
-            return MathX.Clamp(_editingText.SelectionStart, -1, _editingText.Text.Length);
+            return MathX.Clamp(_editingText.SelectionStart, -1, TextValue.Length);
         }
         set
         {
             if (_editingText == null)
                 return;
 
-            _editingText.SelectionStart = MathX.Clamp(value, 0, _editingText.Text.Length + 1);
+            _editingText.SelectionStart = MathX.Clamp(value, 0, TextValue.Length + 1);
         }
     }
 
     static int SelectionLength => !HasSelection ? 0 : MathX.Abs(CaretPosition - SelectionStart);
+
+    static string TextValue => _editingText?.Text ?? string.Empty;
 
     static string BuildDebugState()
     {
         if (_editingText == null)
             return "state={editingText=null}";
 
-        return $"state={{textLength={_editingText.Text.Length}, caret={CaretPosition}, selectionStart={SelectionStart}, selectionLength={SelectionLength}, compositionStart={_compositionStart}, compositionLength={_compositionLength}, compositionVisualCaret={_compositionVisualCaret}, typingUnsettled={_isTypingUnsettled}, text=\"{EscapeForLog(_editingText.Text)}\"}}";
+        var text = TextValue;
+        return $"state={{textLength={text.Length}, caret={CaretPosition}, selectionStart={SelectionStart}, selectionLength={SelectionLength}, compositionStart={_compositionStart}, compositionLength={_compositionLength}, compositionVisualCaret={_compositionVisualCaret}, typingUnsettled={_isTypingUnsettled}, text=\"{EscapeForLog(text)}\"}}";
     }
 
     static string EscapeForLog(string value) =>

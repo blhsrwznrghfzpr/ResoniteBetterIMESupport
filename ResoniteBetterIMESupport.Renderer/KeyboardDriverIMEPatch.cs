@@ -83,17 +83,28 @@ static class KeyboardDriverIMEPatch
         ClearComposition(state);
     }
 
+    public static bool ShouldAllowTextInput(object driver, char value)
+    {
+        var state = GetState(driver);
+        if (state.ImeComposition.Length == 0)
+            return true;
+
+        DebugLog($"Suppressed text input during composition: char=0x{(int)value:X4}, composition=\"{EscapeForLog(state.ImeComposition)}\"");
+        return false;
+    }
+
     static void OnIMECompositionChange(object driver, IMECompositionString composition)
     {
         var compositionText = composition.ToString();
         var state = GetState(driver);
         var compositionCursor = -1;
         var hasCommittedResult = false;
-        if (WindowsImeContextReader.TryGetCursorPosition(compositionText, out var windowsCursor, out var windowsHasCommittedResult, out var windowsImeDiagnostic))
+        if (WindowsImeContextReader.TryGetCursorPosition(compositionText, out var windowsCursor, out var windowsHasCommittedResult, out _, out var windowsImeDiagnostic))
         {
             compositionCursor = windowsCursor;
-            hasCommittedResult = windowsHasCommittedResult;
         }
+
+        hasCommittedResult = windowsHasCommittedResult;
 
         DebugLog($"OnIMECompositionChange: composition=\"{EscapeForLog(compositionText)}\", previous=\"{EscapeForLog(state.ImeComposition)}\", windowsIme={windowsImeDiagnostic}");
 

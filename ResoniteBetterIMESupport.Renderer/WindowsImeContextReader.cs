@@ -10,10 +10,11 @@ static class WindowsImeContextReader
     const int IMM_ERROR_NODATA = -1;
     const int IMM_ERROR_GENERAL = -2;
 
-    public static bool TryGetCursorPosition(string unityComposition, out int cursorPosition, out bool hasCommittedResult, out string diagnostic)
+    public static bool TryGetCursorPosition(string unityComposition, out int cursorPosition, out bool hasCommittedResult, out string committedResult, out string diagnostic)
     {
         cursorPosition = -1;
         hasCommittedResult = false;
+        committedResult = string.Empty;
         diagnostic = "unavailable";
 
         if (!IsWindows())
@@ -24,21 +25,23 @@ static class WindowsImeContextReader
 
         try
         {
-            return TryGetCursorPositionFromImm32(unityComposition, out cursorPosition, out hasCommittedResult, out diagnostic);
+            return TryGetCursorPositionFromImm32(unityComposition, out cursorPosition, out hasCommittedResult, out committedResult, out diagnostic);
         }
         catch (Exception ex)
         {
             cursorPosition = -1;
             hasCommittedResult = false;
+            committedResult = string.Empty;
             diagnostic = $"native-ime-unavailable, exception={ex.GetType().Name}, message=\"{EscapeForLog(ex.Message)}\"";
             return false;
         }
     }
 
-    static bool TryGetCursorPositionFromImm32(string unityComposition, out int cursorPosition, out bool hasCommittedResult, out string diagnostic)
+    static bool TryGetCursorPositionFromImm32(string unityComposition, out int cursorPosition, out bool hasCommittedResult, out string committedResult, out string diagnostic)
     {
         cursorPosition = -1;
         hasCommittedResult = false;
+        committedResult = string.Empty;
         diagnostic = "unavailable";
 
         var hwnd = GetActiveWindow();
@@ -66,17 +69,18 @@ static class WindowsImeContextReader
         {
             var immComposition = TryGetCompositionString(himc, GCS_COMPSTR, out var stringStatus);
             var immResult = TryGetCompositionString(himc, GCS_RESULTSTR, out var resultStatus);
-            hasCommittedResult = !string.IsNullOrEmpty(immResult);
+            committedResult = immResult ?? string.Empty;
+            hasCommittedResult = committedResult.Length > 0;
             var rawCursor = ImmGetCompositionStringW(himc, GCS_CURSORPOS, IntPtr.Zero, 0);
             if (rawCursor == IMM_ERROR_NODATA || rawCursor == IMM_ERROR_GENERAL)
             {
-                diagnostic = $"cursor={FormatImmValue(rawCursor)}, compStringStatus={FormatImmValue(stringStatus)}, compString=\"{EscapeForLog(immComposition ?? "<null>")}\", resultStatus={FormatImmValue(resultStatus)}, hasResult={hasCommittedResult}";
+                diagnostic = $"cursor={FormatImmValue(rawCursor)}, compStringStatus={FormatImmValue(stringStatus)}, compString=\"{EscapeForLog(immComposition ?? "<null>")}\", resultStatus={FormatImmValue(resultStatus)}, resultString=\"{EscapeForLog(committedResult)}\", hasResult={hasCommittedResult}";
                 return false;
             }
 
             var normalizedCursor = rawCursor & 0xFFFF;
             var compositionMatches = immComposition == null || immComposition == unityComposition;
-            diagnostic = $"cursor={normalizedCursor}, compStringStatus={FormatImmValue(stringStatus)}, compString=\"{EscapeForLog(immComposition ?? "<null>")}\", resultStatus={FormatImmValue(resultStatus)}, hasResult={hasCommittedResult}, unityMatch={compositionMatches}";
+            diagnostic = $"cursor={normalizedCursor}, compStringStatus={FormatImmValue(stringStatus)}, compString=\"{EscapeForLog(immComposition ?? "<null>")}\", resultStatus={FormatImmValue(resultStatus)}, resultString=\"{EscapeForLog(committedResult)}\", hasResult={hasCommittedResult}, unityMatch={compositionMatches}";
             if (!compositionMatches)
                 return false;
 
