@@ -12,7 +12,7 @@
 
   <ItemGroup>
     <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeInterprocessMessage.cs" Link="Shared\ImeInterprocessMessage.cs" />
-    <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeInterprocessQueue.cs" Link="Shared\ImeInterprocessQueue.cs" />
+    <Compile Include="..\ResoniteBetterIMESupport.Shared\ImePluginConfig.cs" Link="Shared\ImePluginConfig.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -50,6 +50,10 @@
     </Reference>
     <Reference Include="InterprocessLib.FrooxEngine">
       <HintPath>$(BepisLoaderProfilePath)\BepInEx\plugins\Nytra-InterprocessLib\InterprocessLib.BepisLoader\InterprocessLib.FrooxEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="InterprocessLib.BepisLoader_Extensions">
+      <HintPath>$(BepisLoaderProfilePath)\BepInEx\plugins\Nytra-InterprocessLib\InterprocessLib.BepisLoader\InterprocessLib.BepisLoader_Extensions.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

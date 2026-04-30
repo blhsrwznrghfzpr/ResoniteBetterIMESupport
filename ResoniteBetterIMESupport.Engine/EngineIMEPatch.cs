@@ -1,3 +1,4 @@
+using BepInEx.Configuration;
 using Elements.Core;
 using FrooxEngine;
 using InterprocessLib;
@@ -22,9 +23,8 @@ static class EngineIMEPatch
     public static void Start()
     {
         Stop();
-        var queueName = ImeInterprocessQueue.GetQueueName();
-        DebugLog($"Starting IME receiver: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\", queueName=\"{queueName}\"");
-        _messenger = new Messenger(ImeInterprocessChannel.OwnerId, true, queueName);
+        DebugLog($"Starting IME receiver: ownerId=\"{ImeInterprocessChannel.OwnerId}\", messageId=\"{ImeInterprocessChannel.MessageId}\", queueName=\"{ImeInterprocessChannel.QueueName}\"");
+        _messenger = new Messenger(ImeInterprocessChannel.OwnerId, true, ImeInterprocessChannel.QueueName);
         _messenger.ReceiveObject<ImeInterprocessMessage>(ImeInterprocessChannel.MessageId, OnMessage);
     }
 
@@ -32,6 +32,17 @@ static class EngineIMEPatch
     {
         _messenger?.Dispose();
         _messenger = null;
+    }
+
+    public static void SyncConfigEntry<T>(ConfigEntry<T> configEntry, bool publishInitialValue = false)
+        where T : unmanaged
+    {
+        if (_messenger == null)
+            throw new InvalidOperationException("IME messenger must be started before config entries can be synchronized.");
+
+        _messenger.SyncConfigEntry(configEntry);
+        if (publishInitialValue)
+            _messenger.SendConfigEntry(configEntry);
     }
 
     public static void SetEditingText(IText? text)

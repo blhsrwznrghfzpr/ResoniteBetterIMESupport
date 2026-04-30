@@ -2,6 +2,7 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
+using ResoniteBetterIMESupport.Shared;
 using System.Reflection;
 
 namespace ResoniteBetterIMESupport.Renderer;
@@ -19,9 +20,10 @@ public sealed class RendererPlugin : BaseUnityPlugin
     void Awake()
     {
         Logger = base.Logger;
-        _enableDebugLogging = Config.Bind("Debug", "EnableDebugLogging", false, "Enable verbose IME debug logging.");
+        _enableDebugLogging = ImePluginConfig.BindEnableDebugLogging(Config);
 
         KeyboardDriverIMEPatch.InitializeMessaging();
+        KeyboardDriverIMEPatch.SyncConfigEntry(_enableDebugLogging);
         new Harmony(PluginGuid).PatchAll(Assembly.GetExecutingAssembly());
         Logger.LogInfo("ResoniteBetterIMESupport.Renderer loaded.");
     }

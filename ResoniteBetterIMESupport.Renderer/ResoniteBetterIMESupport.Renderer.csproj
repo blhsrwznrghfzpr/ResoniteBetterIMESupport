@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeInterprocessMessage.cs" Link="Shared\ImeInterprocessMessage.cs" />
-    <Compile Include="..\ResoniteBetterIMESupport.Shared\ImeInterprocessQueue.cs" Link="Shared\ImeInterprocessQueue.cs" />
+    <Compile Include="..\ResoniteBetterIMESupport.Shared\ImePluginConfig.cs" Link="Shared\ImePluginConfig.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,6 +31,10 @@
     </Reference>
     <Reference Include="InterprocessLib.Unity">
       <HintPath>$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\Nytra-InterprocessLib\InterprocessLib.BepInEx\InterprocessLib.Unity.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="InterprocessLib.BepInEx_Extensions">
+      <HintPath>$(BepisLoaderProfilePath)\Renderer\BepInEx\plugins\Nytra-InterprocessLib\InterprocessLib.BepInEx\InterprocessLib.BepInEx_Extensions.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.InputSystem">
