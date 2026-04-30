@@ -77,19 +77,38 @@ static class KeyboardDriverIMEPatch
         }
 
         DebugLog($"Keyboard input became inactive. Canceling composition=\"{EscapeForLog(state.ImeComposition)}\"");
-        if (!TrySendComposition(string.Empty))
+        if (!TrySendComposition(string.Empty, -1))
             DebugLog("Composition clear send failed.");
 
         ClearComposition(state);
+    }
+
+    public static bool ShouldAllowTextInput(object driver, char value)
+    {
+        var state = GetState(driver);
+        if (state.ImeComposition.Length == 0)
+            return true;
+
+        DebugLog($"Suppressed text input during composition: char=0x{(int)value:X4}, composition=\"{EscapeForLog(state.ImeComposition)}\"");
+        return false;
     }
 
     static void OnIMECompositionChange(object driver, IMECompositionString composition)
     {
         var compositionText = composition.ToString();
         var state = GetState(driver);
-        DebugLog($"OnIMECompositionChange: composition=\"{EscapeForLog(compositionText)}\", previous=\"{EscapeForLog(state.ImeComposition)}\"");
+        var compositionCursor = -1;
+        var hasCommittedResult = false;
+        if (WindowsImeContextReader.TryGetCursorPosition(compositionText, out var windowsCursor, out var windowsHasCommittedResult, out _, out var windowsImeDiagnostic))
+        {
+            compositionCursor = windowsCursor;
+        }
 
-        if (!TrySendComposition(compositionText))
+        hasCommittedResult = windowsHasCommittedResult;
+
+        DebugLog($"OnIMECompositionChange: composition=\"{EscapeForLog(compositionText)}\", previous=\"{EscapeForLog(state.ImeComposition)}\", windowsIme={windowsImeDiagnostic}");
+
+        if (!TrySendComposition(compositionText, compositionCursor, hasCommittedResult))
         {
             DebugLog("Composition update send failed.");
             return;
@@ -100,14 +119,16 @@ static class KeyboardDriverIMEPatch
             ClearComposition(state);
     }
 
-    static bool TrySendComposition(string composition)
+    static bool TrySendComposition(string composition, int compositionCursor, bool hasCommittedResult = false)
     {
         try
         {
             InitializeMessaging();
             _messenger!.SendObject(ImeInterprocessChannel.MessageId, new ImeInterprocessMessage
             {
-                Composition = composition
+                Composition = composition,
+                CompositionCursor = compositionCursor,
+                HasCommittedResult = hasCommittedResult
             });
             return true;
         }
