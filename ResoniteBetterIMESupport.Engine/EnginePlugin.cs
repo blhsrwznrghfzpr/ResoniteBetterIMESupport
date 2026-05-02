@@ -14,7 +14,7 @@ public sealed class EnginePlugin : BasePlugin
 {
     public const string PluginGuid = "dev.blhsrwznrghfzpr.ResoniteBetterIMESupport.Engine";
     public const string PluginName = "ResoniteBetterIMESupport.Engine";
-    public const string PluginVersion = "3.0.3";
+    public const string PluginVersion = "3.0.4";
 
     internal static new ManualLogSource Log = null!;
     static ConfigEntry<bool> _enableDebugLogging = null!;

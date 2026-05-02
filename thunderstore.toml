@@ -6,7 +6,7 @@ schemaVersion = "0.0.1"
 [package]
 namespace = "blhsrwznrghfzpr"
 name = "ResoniteBetterIMESupport"
-versionNumber = "3.0.3"
+versionNumber = "3.0.4"
 description = "Fixes IME composition display issues in Resonite with complex input methods such as Japanese"
 websiteUrl = "https://github.com/blhsrwznrghfzpr/ResoniteBetterIMESupport"
 containsNsfwContent = false
