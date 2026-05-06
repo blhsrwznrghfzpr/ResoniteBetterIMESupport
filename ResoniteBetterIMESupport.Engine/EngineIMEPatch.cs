@@ -99,6 +99,14 @@ static class EngineIMEPatch
         DebugLog($"Suppressed TextEditor key from {source}: key={key}, {DebugState}");
     }
 
+    public static bool ShouldSuppressScreenModeToggleKey(Key key) =>
+        key == Key.F8 && HasCompositionRange;
+
+    public static void LogSuppressedScreenModeToggleKey(Key key, string source)
+    {
+        DebugLog($"Suppressed screen mode toggle from {source}: key={key}, {DebugState}");
+    }
+
     static void OnMessage(ImeInterprocessMessage message)
     {
         var text = _editingText;
