@@ -6,11 +6,10 @@ A BepInEx plugin for Resonite that improves IME composition handling for input m
 
 This mod keeps IME composition text synchronized while editing UIX text, including:
 
-- showing the IME composition caret at the correct position
-- editing composition text with Delete/Backspace without letting Resonite delete the whole composition range
-- finalizing composition text when the IME reports an empty composition
+- displaying unconfirmed text while typing with an IME
+- suppressing Resonite's F8 VR/Screen mode toggle while an IME composition is unconfirmed
 
-Related issue: [Yellow-Dog-Man/Resonite-Issues#745](https://github.com/Yellow-Dog-Man/Resonite-Issues/issues/745)
+Related issue: [Yellow-Dog-Man/Resonite-Issues#745](https://github.com/Yellow-Dog-Man/Resonite-Issues/issues/745), [Yellow-Dog-Man/Resonite-Issues#2825](https://github.com/Yellow-Dog-Man/Resonite-Issues/issues/2825)
 
 ## Project Layout
 
