@@ -11,6 +11,8 @@ This mod keeps IME composition text synchronized while editing UIX text, includi
 
 Related issue: [Yellow-Dog-Man/Resonite-Issues#745](https://github.com/Yellow-Dog-Man/Resonite-Issues/issues/745), [Yellow-Dog-Man/Resonite-Issues#2825](https://github.com/Yellow-Dog-Man/Resonite-Issues/issues/2825)
 
+https://github.com/user-attachments/assets/f443502e-fa07-489a-a6c7-22f8117528e4
+
 ## Project Layout
 
 Resonite runs the Unity renderer and the main engine in separate processes, so this mod is split into two plugins:
