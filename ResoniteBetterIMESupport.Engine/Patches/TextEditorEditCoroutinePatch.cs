@@ -36,14 +36,6 @@ static class TextEditorEditCoroutinePatch
 
         for (var i = 0; i < codes.Count; i++)
         {
-            if (i + 1 < codes.Count
-                && codes[i].opcode == OpCodes.Ldloc_3
-                && codes[i + 1].opcode == OpCodes.Brfalse_S)
-            {
-                codes.Insert(i + 1, new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TextEditorEditCoroutinePatch), nameof(IsStringChanged))));
-                break;
-            }
-
             if (i > 0
                 && codes[i].Calls(getKeyRepeatMethod)
                 && codes[i - 1].opcode == OpCodes.Ldc_I4
@@ -55,8 +47,6 @@ static class TextEditorEditCoroutinePatch
 
         return codes;
     }
-
-    static bool IsStringChanged(bool original) => EngineIMEPatch.ConsumeStringChanged() || original;
 
     static bool GetKeyRepeat(InputInterface inputInterface, Key key)
     {

@@ -7,11 +7,11 @@ namespace ResoniteBetterIMESupport.Engine.Patches;
 [HarmonyPatch(typeof(InputInterface), nameof(InputInterface.ShowKeyboard))]
 static class InputInterfaceShowKeyboardPatch
 {
-    static void Postfix(IText? targetText)
+    static void Postfix(IText? targetText, object? requestee)
     {
         try
         {
-            EngineIMEPatch.SetEditingText(targetText);
+            EngineIMEPatch.SetEditingText(targetText, requestee as TextEditor);
         }
         catch (Exception ex)
         {
