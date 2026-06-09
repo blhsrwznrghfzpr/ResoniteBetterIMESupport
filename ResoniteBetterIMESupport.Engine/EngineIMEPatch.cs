@@ -10,8 +10,8 @@ namespace ResoniteBetterIMESupport.Engine;
 static class EngineIMEPatch
 {
     static IText? _editingText;
+    static TextEditor? _textEditor;
     static Messenger? _messenger;
-    static bool _stringChanged;
     static bool _isTypingUnsettled;
     static int _compositionStart = -1;
     static int _compositionLength;
@@ -45,7 +45,7 @@ static class EngineIMEPatch
             _messenger.SendConfigEntry(configEntry);
     }
 
-    public static void SetEditingText(IText? text)
+    public static void SetEditingText(IText? text, TextEditor? textEditor)
     {
         if (text == null)
         {
@@ -57,7 +57,7 @@ static class EngineIMEPatch
             CommitVisibleComposition("SetEditingText switched target");
 
         _editingText = text;
-        _stringChanged = false;
+        _textEditor = textEditor;
         _isTypingUnsettled = false;
         ClearCompositionRange();
         var textValue = text.Text ?? string.Empty;
@@ -71,18 +71,9 @@ static class EngineIMEPatch
         CommitVisibleComposition("ClearEditingText");
 
         _editingText = null;
-        _stringChanged = false;
+        _textEditor = null;
         _isTypingUnsettled = false;
         ClearCompositionRange();
-    }
-
-    public static bool ConsumeStringChanged()
-    {
-        if (!_stringChanged)
-            return false;
-
-        _stringChanged = false;
-        return true;
     }
 
     public static bool ShouldSuppressTextEditorKey(Key key) =>
@@ -126,20 +117,22 @@ static class EngineIMEPatch
 
         DebugLog($"ApplyMessage begin: {message}, {DebugState}");
 
-        ApplyComposition(message.Composition, message.CompositionCursor, message.HasCommittedResult);
+        if (ApplyComposition(message.Composition, message.CompositionCursor, message.HasCommittedResult))
+            _textEditor?.ForceEditingChangedEvent();
     }
 
-    static void ApplyComposition(string composition, int compositionCursor, bool hasCommittedResult)
+    static bool ApplyComposition(string composition, int compositionCursor, bool hasCommittedResult)
     {
         if (_editingText == null)
-            return;
+            return false;
 
         if (hasCommittedResult && HasCompositionRange)
         {
             CommitVisibleComposition("ApplyComposition committed result");
-            return;
+            return true;
         }
 
+        var textChanged = HasCompositionRange || SelectionLength > 0;
         if (HasCompositionRange)
             DeleteCompositionRange();
         else if (HasSelection)
@@ -151,7 +144,7 @@ static class EngineIMEPatch
             HasSelection = false;
             _isTypingUnsettled = false;
             DebugLog($"ApplyComposition cleared composition: {DebugState}");
-            return;
+            return textChanged;
         }
 
         var compositionStart = CaretPosition;
@@ -161,8 +154,8 @@ static class EngineIMEPatch
         _compositionVisualCaret = ToTextCaretPosition(compositionStart, composition.Length, compositionCursor);
         HasSelection = false;
         _isTypingUnsettled = true;
-        _stringChanged = true;
         DebugLog($"ApplyComposition replaced composition: visualCaret={_compositionVisualCaret}, {DebugState}");
+        return true;
     }
 
     static void InsertText(string value)
@@ -214,7 +207,6 @@ static class EngineIMEPatch
         HasSelection = false;
         CaretPosition = caretPosition;
         _isTypingUnsettled = false;
-        _stringChanged = true;
         DebugLog($"{source} committed visible composition: {DebugState}");
     }
 
